@@ -8,6 +8,7 @@ const INITIAL_HEADING = 34;
 const INITIAL_PITCH = 0;
 const TURN_DEGREES = 15;
 const FORWARD_METERS = 10;
+const DEFAULT_SPEED_KMH = 2.5;
 
 type StreetViewState = {
   position: google.maps.LatLngLiteral;
@@ -43,15 +44,21 @@ function moveForward(
   };
 }
 
-function StreetViewPanel() {
+function formatElapsed(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+}
+
+type StreetViewPanelProps = {
+  view: StreetViewState;
+  setView: React.Dispatch<React.SetStateAction<StreetViewState>>;
+};
+
+function StreetViewPanel({ view, setView }: StreetViewPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const panoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const apiIsLoaded = useApiIsLoaded();
-  const [view, setView] = useState<StreetViewState>({
-    position: EIFFEL_TOWER,
-    heading: INITIAL_HEADING,
-    pitch: INITIAL_PITCH,
-  });
 
   useEffect(() => {
     if (!apiIsLoaded || !containerRef.current) return;
@@ -134,7 +141,120 @@ function StreetViewPanel() {
   );
 }
 
+type WalkingModePanelProps = {
+  speedKmh: number;
+  setSpeedKmh: React.Dispatch<React.SetStateAction<number>>;
+  isWalking: boolean;
+  onStart: () => void;
+  onPause: () => void;
+  onReset: () => void;
+  distanceKm: number;
+  elapsedSeconds: number;
+  heading: number;
+};
+
+function WalkingModePanel({
+  speedKmh,
+  setSpeedKmh,
+  isWalking,
+  onStart,
+  onPause,
+  onReset,
+  distanceKm,
+  elapsedSeconds,
+  heading,
+}: WalkingModePanelProps) {
+  return (
+    <div className="absolute right-4 bottom-4 left-4 rounded-lg bg-white/90 p-4 shadow-md backdrop-blur-sm">
+      <h2 className="mb-3 text-sm font-semibold text-zinc-900">Walking Mode</h2>
+
+      <label className="mb-3 block text-sm text-zinc-700">
+        Speed: {speedKmh.toFixed(1)} km/h
+        <input
+          type="range"
+          min={0.5}
+          max={10}
+          step={0.1}
+          value={speedKmh}
+          onChange={(event) => setSpeedKmh(Number(event.target.value))}
+          className="mt-2 w-full"
+        />
+      </label>
+
+      <div className="mb-3 grid grid-cols-2 gap-2 font-mono text-xs text-zinc-700">
+        <p>Speed: {speedKmh.toFixed(1)} km/h</p>
+        <p>Distance: {distanceKm.toFixed(3)} km</p>
+        <p>Elapsed: {formatElapsed(elapsedSeconds)}</p>
+        <p>Heading: {heading.toFixed(1)}°</p>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={isWalking}
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          onClick={onStart}
+        >
+          Start
+        </button>
+        <button
+          type="button"
+          disabled={!isWalking}
+          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 ring-1 ring-zinc-300 disabled:opacity-40"
+          onClick={onPause}
+        >
+          Pause
+        </button>
+        <button
+          type="button"
+          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 ring-1 ring-zinc-300"
+          onClick={onReset}
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function WorldWalk() {
+  const [view, setView] = useState<StreetViewState>({
+    position: EIFFEL_TOWER,
+    heading: INITIAL_HEADING,
+    pitch: INITIAL_PITCH,
+  });
+  const [speedKmh, setSpeedKmh] = useState(DEFAULT_SPEED_KMH);
+  const [isWalking, setIsWalking] = useState(false);
+  const [distanceKm, setDistanceKm] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isWalking) return;
+
+    const metersPerSecond = (speedKmh * 1000) / 3600;
+
+    const interval = window.setInterval(() => {
+      setView((current) => ({
+        ...current,
+        position: moveForward(
+          current.position,
+          current.heading,
+          metersPerSecond
+        ),
+      }));
+      setDistanceKm((current) => current + metersPerSecond / 1000);
+      setElapsedSeconds((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isWalking, speedKmh]);
+
+  const handleReset = () => {
+    setIsWalking(false);
+    setDistanceKm(0);
+    setElapsedSeconds(0);
+  };
+
   return (
     <div className="relative flex h-dvh w-full flex-col md:flex-row">
       <div className="relative min-h-0 flex-1">
@@ -144,10 +264,22 @@ function WorldWalk() {
           gestureHandling="greedy"
           style={{ width: "100%", height: "100%" }}
         />
+
+        <WalkingModePanel
+          speedKmh={speedKmh}
+          setSpeedKmh={setSpeedKmh}
+          isWalking={isWalking}
+          onStart={() => setIsWalking(true)}
+          onPause={() => setIsWalking(false)}
+          onReset={handleReset}
+          distanceKm={distanceKm}
+          elapsedSeconds={elapsedSeconds}
+          heading={view.heading}
+        />
       </div>
 
       <div className="relative min-h-0 flex-1">
-        <StreetViewPanel />
+        <StreetViewPanel view={view} setView={setView} />
       </div>
 
       <div className="pointer-events-none absolute top-4 left-4 rounded-lg bg-white/90 px-4 py-3 shadow-md backdrop-blur-sm">
