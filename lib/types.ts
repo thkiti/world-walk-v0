@@ -38,4 +38,4 @@ export type NavScreen =
   | { step: "preview"; destinationId: string }
   | { step: "walking"; destinationId: string };
 
-export type MovementSource = "manual" | "phone-steps";
+export type MovementSource = "manual" | "phone-steps" | "remote-phone-sensor";

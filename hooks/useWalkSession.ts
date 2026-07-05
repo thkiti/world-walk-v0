@@ -53,6 +53,8 @@ export function useWalkSession(
   const applyMovementDelta = (deltaMeters: number) => {
     if (deltaMeters <= 0) return;
 
+    setLastStepDeltaMeters(deltaMeters);
+
     setPathDistanceMeters((currentDistance) => {
       const result = advanceAlongPath(
         points,
@@ -138,6 +140,7 @@ export function useWalkSession(
     lastStepDeltaMeters,
     streetViewDebug,
     setStreetViewDebug,
+    applyMovementDelta,
     resetStepProgress: () => {
       lastProcessedStepsRef.current = 0;
       setLastStepDeltaMeters(0);

@@ -1,10 +1,18 @@
 "use client";
 
 import { formatElapsed } from "@/lib/geo";
+import { MOVEMENT_SOURCE_LABELS } from "@/lib/movement-source";
 import { estimatePaceKmh, stepsToDistanceMeters } from "@/lib/step-counter";
 import { GLASS_PANEL } from "@/lib/ui";
 import type { MovementSource } from "@/lib/types";
 import type { WakeLockDisplayStatus } from "@/lib/wake-lock";
+import {
+  RemoteSensorActiveStatus,
+  RemoteSensorControls,
+} from "@/components/walk/RemoteSensorControls";
+import type { useRemoteMovementSensor } from "@/hooks/useRemoteMovementSensor";
+
+type RemoteSensorState = ReturnType<typeof useRemoteMovementSensor>;
 
 type WalkingHudProps = {
   destinationTitle: string;
@@ -19,6 +27,7 @@ type WalkingHudProps = {
   steps: number;
   strideLengthMeters: number;
   setStrideLengthMeters: (stride: number) => void;
+  remoteSensor: RemoteSensorState;
   onPause: () => void;
   onResume: () => void;
   onReset: () => void;
@@ -68,6 +77,7 @@ export function WalkingHud({
   steps,
   strideLengthMeters,
   setStrideLengthMeters,
+  remoteSensor,
   onPause,
   onResume,
   onReset,
@@ -84,6 +94,10 @@ export function WalkingHud({
 
   const stepDistanceMeters = stepsToDistanceMeters(steps, strideLengthMeters);
   const estimatedPaceKmh = estimatePaceKmh(stepDistanceMeters, elapsedSeconds);
+  const remotePaceKmh = estimatePaceKmh(
+    remoteSensor.receivedDistanceMeters,
+    elapsedSeconds
+  );
 
   if (isWalking) {
     return (
@@ -110,7 +124,9 @@ export function WalkingHud({
           {formatElapsed(elapsedSeconds)} ·{" "}
           {movementSource === "phone-steps"
             ? `${estimatedPaceKmh.toFixed(1)} km/h pace`
-            : `${speedKmh.toFixed(1)} km/h`}{" "}
+            : movementSource === "remote-phone-sensor"
+              ? `${remotePaceKmh.toFixed(1)} km/h remote pace`
+              : `${speedKmh.toFixed(1)} km/h`}{" "}
           · {heading.toFixed(0)}°
         </p>
 
@@ -119,6 +135,15 @@ export function WalkingHud({
             {steps} steps · {(stepDistanceMeters / 1000).toFixed(2)} km from
             steps
           </p>
+        )}
+
+        {movementSource === "remote-phone-sensor" && (
+          <RemoteSensorActiveStatus
+            connectionStatus={remoteSensor.connectionStatus}
+            sensorPeerConnected={remoteSensor.sensorPeerConnected}
+            receivedSteps={remoteSensor.receivedSteps}
+            receivedDistanceMeters={remoteSensor.receivedDistanceMeters}
+          />
         )}
 
         <WakeLockIndicator status={wakeLockStatus} />
@@ -174,8 +199,13 @@ export function WalkingHud({
           }
           className="mt-1 w-full rounded-lg border border-white/60 bg-white/50 px-2 py-1.5 text-sm backdrop-blur-sm"
         >
-          <option value="manual">Manual Speed</option>
-          <option value="phone-steps">Phone Steps (Android)</option>
+          {(Object.keys(MOVEMENT_SOURCE_LABELS) as MovementSource[]).map(
+            (source) => (
+              <option key={source} value={source}>
+                {MOVEMENT_SOURCE_LABELS[source]}
+              </option>
+            )
+          )}
         </select>
       </label>
 
@@ -220,6 +250,23 @@ export function WalkingHud({
             </>
           )}
         </div>
+      )}
+
+      {movementSource === "remote-phone-sensor" && (
+        <RemoteSensorControls
+          sessionCode={remoteSensor.sessionCode}
+          onSessionCodeChange={remoteSensor.setSessionCode}
+          relayBaseUrl={remoteSensor.relayBaseUrl}
+          onRelayBaseUrlChange={remoteSensor.setRelayBaseUrl}
+          connectionStatus={remoteSensor.connectionStatus}
+          sensorPeerConnected={remoteSensor.sensorPeerConnected}
+          receivedSteps={remoteSensor.receivedSteps}
+          receivedDistanceMeters={remoteSensor.receivedDistanceMeters}
+          lastReceivedAt={remoteSensor.lastReceivedAt}
+          onConnect={remoteSensor.connect}
+          onDisconnect={remoteSensor.disconnect}
+          isConnected={remoteSensor.isConnected}
+        />
       )}
 
       <div className="mt-3 flex gap-2">

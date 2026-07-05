@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map } from "@vis.gl/react-google-maps";
 import { DestinationMapOverlay } from "@/components/map/DestinationMapOverlay";
+import {
+  RemoteSensorActiveStatus,
+  RemoteSensorControls,
+} from "@/components/walk/RemoteSensorControls";
 import { StreetViewPanel } from "@/components/walk/StreetViewPanel";
 import { WalkingDebugPanel } from "@/components/walk/WalkingDebugPanel";
 import { WalkingHud } from "@/components/walk/WalkingHud";
 import { usePhoneStepCounter } from "@/hooks/usePhoneStepCounter";
+import { useRemoteMovementSensor } from "@/hooks/useRemoteMovementSensor";
 import { useWalkSession } from "@/hooks/useWalkSession";
 import { useWakeLock } from "@/hooks/useWakeLock";
+import { isRemoteStepSource } from "@/lib/movement-source";
 import type { MovementSource, WalkDestination } from "@/lib/types";
 import type { StreetViewDebugState, WalkDebugState } from "@/lib/walk-debug";
 import { GLASS_PANEL } from "@/lib/ui";
@@ -44,7 +50,33 @@ export function ActiveWalkView({
     steps,
   });
 
-  const { setStreetViewDebug, setIsWalking } = session;
+  const { setStreetViewDebug, setIsWalking, applyMovementDelta } = session;
+  const isWalkingRef = useRef(session.isWalking);
+
+  useEffect(() => {
+    isWalkingRef.current = session.isWalking;
+  }, [session.isWalking]);
+
+  const handleRemoteConnectionLost = useCallback(() => {
+    setIsWalking(false);
+  }, [setIsWalking]);
+
+  const handleRemoteMovementDelta = useCallback(
+    (deltaMeters: number) => {
+      if (!isWalkingRef.current) return;
+      applyMovementDelta(deltaMeters);
+    },
+    [applyMovementDelta]
+  );
+
+  const remoteSensor = useRemoteMovementSensor({
+    enabled: isRemoteStepSource(movementSource),
+    onMovementDelta: handleRemoteMovementDelta,
+    onConnectionLost: handleRemoteConnectionLost,
+  });
+
+  const disconnectRemoteSensor = remoteSensor.disconnect;
+  const resetRemoteSensorStats = remoteSensor.resetStats;
 
   const wakeLockStatus = useWakeLock(session.isWalking);
 
@@ -100,15 +132,20 @@ export function ActiveWalkView({
       }
 
       stopPhoneSteps();
+
+      if (!isRemoteStepSource(source)) {
+        disconnectRemoteSensor();
+      }
     },
-    [startPhoneSteps, stopPhoneSteps]
+    [startPhoneSteps, stopPhoneSteps, disconnectRemoteSensor]
   );
 
   const handleReset = useCallback(() => {
     session.reset();
     resetPhoneSteps();
+    resetRemoteSensorStats();
     session.resetStepProgress();
-  }, [session, resetPhoneSteps]);
+  }, [session, resetPhoneSteps, resetRemoteSensorStats]);
 
   const handleResume = useCallback(() => {
     if (movementSource === "phone-steps") {
@@ -146,6 +183,7 @@ export function ActiveWalkView({
           steps={steps}
           strideLengthMeters={strideLengthMeters}
           setStrideLengthMeters={setStrideLengthMeters}
+          remoteSensor={remoteSensor}
           onPause={() => setIsWalking(false)}
           onResume={handleResume}
           onReset={handleReset}
