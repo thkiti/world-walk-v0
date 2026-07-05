@@ -37,3 +37,5 @@ export type NavScreen =
   | { step: "city"; continent: string; country: string; city: string }
   | { step: "preview"; destinationId: string }
   | { step: "walking"; destinationId: string };
+
+export type MovementSource = "manual" | "phone-steps";

@@ -1,7 +1,9 @@
 "use client";
 
 import { formatElapsed } from "@/lib/geo";
+import { estimatePaceKmh, stepsToDistanceMeters } from "@/lib/step-counter";
 import { GLASS_PANEL } from "@/lib/ui";
+import type { MovementSource } from "@/lib/types";
 import type { WakeLockDisplayStatus } from "@/lib/wake-lock";
 
 type WalkingHudProps = {
@@ -10,6 +12,13 @@ type WalkingHudProps = {
   setSpeedKmh: (speed: number) => void;
   isWalking: boolean;
   wakeLockStatus: WakeLockDisplayStatus;
+  movementSource: MovementSource;
+  onMovementSourceChange: (source: MovementSource) => void;
+  phoneStepsSupported: boolean;
+  phoneStepsUnavailable: boolean;
+  steps: number;
+  strideLengthMeters: number;
+  setStrideLengthMeters: (stride: number) => void;
   onPause: () => void;
   onResume: () => void;
   onReset: () => void;
@@ -52,6 +61,13 @@ export function WalkingHud({
   setSpeedKmh,
   isWalking,
   wakeLockStatus,
+  movementSource,
+  onMovementSourceChange,
+  phoneStepsSupported,
+  phoneStepsUnavailable,
+  steps,
+  strideLengthMeters,
+  setStrideLengthMeters,
   onPause,
   onResume,
   onReset,
@@ -65,6 +81,9 @@ export function WalkingHud({
     totalDistanceKm > 0
       ? Math.min(100, (distanceWalkedKm / totalDistanceKm) * 100)
       : 0;
+
+  const stepDistanceMeters = stepsToDistanceMeters(steps, strideLengthMeters);
+  const estimatedPaceKmh = estimatePaceKmh(stepDistanceMeters, elapsedSeconds);
 
   if (isWalking) {
     return (
@@ -88,9 +107,19 @@ export function WalkingHud({
         </div>
 
         <p className="mt-1 text-xs text-zinc-700">
-          {formatElapsed(elapsedSeconds)} · {speedKmh.toFixed(1)} km/h ·{" "}
-          {heading.toFixed(0)}°
+          {formatElapsed(elapsedSeconds)} ·{" "}
+          {movementSource === "phone-steps"
+            ? `${estimatedPaceKmh.toFixed(1)} km/h pace`
+            : `${speedKmh.toFixed(1)} km/h`}{" "}
+          · {heading.toFixed(0)}°
         </p>
+
+        {movementSource === "phone-steps" && (
+          <p className="mt-1 text-[11px] text-zinc-600">
+            {steps} steps · {(stepDistanceMeters / 1000).toFixed(2)} km from
+            steps
+          </p>
+        )}
 
         <WakeLockIndicator status={wakeLockStatus} />
 
@@ -137,17 +166,61 @@ export function WalkingHud({
       </p>
 
       <label className="mt-3 block text-xs text-zinc-800">
-        Speed: {speedKmh.toFixed(1)} km/h
-        <input
-          type="range"
-          min={0.5}
-          max={10}
-          step={0.1}
-          value={speedKmh}
-          onChange={(event) => setSpeedKmh(Number(event.target.value))}
-          className="mt-1 w-full"
-        />
+        Movement Source
+        <select
+          value={movementSource}
+          onChange={(event) =>
+            onMovementSourceChange(event.target.value as MovementSource)
+          }
+          className="mt-1 w-full rounded-lg border border-white/60 bg-white/50 px-2 py-1.5 text-sm backdrop-blur-sm"
+        >
+          <option value="manual">Manual Speed</option>
+          <option value="phone-steps">Phone Steps (Android)</option>
+        </select>
       </label>
+
+      {movementSource === "manual" && (
+        <label className="mt-2 block text-xs text-zinc-800">
+          Speed: {speedKmh.toFixed(1)} km/h
+          <input
+            type="range"
+            min={0.5}
+            max={10}
+            step={0.1}
+            value={speedKmh}
+            onChange={(event) => setSpeedKmh(Number(event.target.value))}
+            className="mt-1 w-full"
+          />
+        </label>
+      )}
+
+      {movementSource === "phone-steps" && (
+        <div className="mt-2 space-y-2 text-xs text-zinc-800">
+          {!phoneStepsSupported || phoneStepsUnavailable ? (
+            <p className="text-zinc-600">Phone steps unavailable</p>
+          ) : (
+            <>
+              <label className="block">
+                Stride: {strideLengthMeters.toFixed(2)} m
+                <input
+                  type="range"
+                  min={0.5}
+                  max={1.2}
+                  step={0.05}
+                  value={strideLengthMeters}
+                  onChange={(event) =>
+                    setStrideLengthMeters(Number(event.target.value))
+                  }
+                  className="mt-1 w-full"
+                />
+              </label>
+              <p>Steps: {steps}</p>
+              <p>Step distance: {(stepDistanceMeters / 1000).toFixed(2)} km</p>
+              <p>Pace: {estimatedPaceKmh.toFixed(1)} km/h</p>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 flex gap-2">
         <button

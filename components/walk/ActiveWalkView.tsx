@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Map } from "@vis.gl/react-google-maps";
 import { DestinationMapOverlay } from "@/components/map/DestinationMapOverlay";
 import { StreetViewPanel } from "@/components/walk/StreetViewPanel";
 import { WalkingHud } from "@/components/walk/WalkingHud";
+import { usePhoneStepCounter } from "@/hooks/usePhoneStepCounter";
 import { useWalkSession } from "@/hooks/useWalkSession";
 import { useWakeLock } from "@/hooks/useWakeLock";
-import type { WalkDestination } from "@/lib/types";
+import type { MovementSource, WalkDestination } from "@/lib/types";
 import { GLASS_PANEL } from "@/lib/ui";
 
 type ActiveWalkViewProps = {
@@ -21,7 +22,26 @@ export function ActiveWalkView({
   autoStart = true,
   onExit,
 }: ActiveWalkViewProps) {
-  const session = useWalkSession(destination);
+  const [movementSource, setMovementSource] =
+    useState<MovementSource>("manual");
+  const phoneSteps = usePhoneStepCounter();
+  const {
+    steps,
+    isSupported,
+    isUnavailable,
+    strideLengthMeters,
+    setStrideLengthMeters,
+    start: startPhoneSteps,
+    stop: stopPhoneSteps,
+    reset: resetPhoneSteps,
+  } = phoneSteps;
+
+  const session = useWalkSession(destination, {
+    movementSource,
+    strideLengthMeters,
+    steps,
+  });
+
   const wakeLockStatus = useWakeLock(session.isWalking);
 
   const { setIsWalking } = session;
@@ -31,6 +51,42 @@ export function ActiveWalkView({
       setIsWalking(true);
     }
   }, [autoStart, destination.id, setIsWalking]);
+
+  useEffect(() => {
+    if (session.isWalking && movementSource === "phone-steps") {
+      void startPhoneSteps();
+      return;
+    }
+
+    stopPhoneSteps();
+  }, [session.isWalking, movementSource, startPhoneSteps, stopPhoneSteps]);
+
+  const handleMovementSourceChange = useCallback(
+    (source: MovementSource) => {
+      setMovementSource(source);
+
+      if (source === "phone-steps") {
+        void startPhoneSteps();
+        return;
+      }
+
+      stopPhoneSteps();
+    },
+    [startPhoneSteps, stopPhoneSteps]
+  );
+
+  const handleReset = useCallback(() => {
+    session.reset();
+    resetPhoneSteps();
+    session.resetStepProgress();
+  }, [session, resetPhoneSteps]);
+
+  const handleResume = useCallback(() => {
+    if (movementSource === "phone-steps") {
+      void startPhoneSteps();
+    }
+    setIsWalking(true);
+  }, [movementSource, startPhoneSteps, setIsWalking]);
 
   return (
     <div className="relative flex h-dvh w-full flex-col md:flex-row">
@@ -54,9 +110,16 @@ export function ActiveWalkView({
           setSpeedKmh={session.setSpeedKmh}
           isWalking={session.isWalking}
           wakeLockStatus={wakeLockStatus}
-          onPause={() => session.setIsWalking(false)}
-          onResume={() => session.setIsWalking(true)}
-          onReset={session.reset}
+          movementSource={movementSource}
+          onMovementSourceChange={handleMovementSourceChange}
+          phoneStepsSupported={isSupported}
+          phoneStepsUnavailable={isUnavailable}
+          steps={steps}
+          strideLengthMeters={strideLengthMeters}
+          setStrideLengthMeters={setStrideLengthMeters}
+          onPause={() => setIsWalking(false)}
+          onResume={handleResume}
+          onReset={handleReset}
           onExit={onExit}
           distanceWalkedKm={session.distanceWalkedKm}
           totalDistanceKm={session.totalDistanceKm}
