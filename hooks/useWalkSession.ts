@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getPathLengthMeters,
-  getRouteProgress,
-  INITIAL_PITCH,
   viewFromRouteProgress,
 } from "@/lib/geo";
 import { logPhoneSteps } from "@/lib/step-counter";
-import type { MovementSource, StreetViewState, WalkDestination } from "@/lib/types";
+import type { MovementSource, WalkDestination } from "@/lib/types";
+import { EMPTY_STREET_VIEW_DEBUG, type StreetViewDebugState } from "@/lib/walk-debug";
+import { advanceAlongPath, getRouteIndices } from "@/lib/walk-movement";
 
 const DEFAULT_SPEED_KMH = 2.5;
 
@@ -27,70 +27,73 @@ export function useWalkSession(
   }
 ) {
   const { movementSource, strideLengthMeters, steps } = options;
+  const points = destination.points;
 
-  const [view, setView] = useState<StreetViewState>(() =>
-    viewFromRouteProgress(destination.points, 0)
-  );
+  const [view, setView] = useState(() => viewFromRouteProgress(points, 0));
   const [speedKmh, setSpeedKmh] = useState(DEFAULT_SPEED_KMH);
   const [isWalking, setIsWalking] = useState(false);
   const [pathDistanceMeters, setPathDistanceMeters] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [lastStepDeltaMeters, setLastStepDeltaMeters] = useState(0);
+  const [streetViewDebug, setStreetViewDebug] =
+    useState<StreetViewDebugState>(EMPTY_STREET_VIEW_DEBUG);
+
   const lastProcessedStepsRef = useRef(0);
 
   const totalPathMeters = useMemo(
-    () => getPathLengthMeters(destination.points),
-    [destination.points]
+    () => getPathLengthMeters(points),
+    [points]
   );
 
-  const advancePathDistance = (meters: number) => {
-    setPathDistanceMeters((current) => {
-      const next = Math.min(current + meters, totalPathMeters);
-      const progress = getRouteProgress(destination.points, next);
+  const routeIndices = useMemo(
+    () => getRouteIndices(points, pathDistanceMeters),
+    [points, pathDistanceMeters]
+  );
 
-      setView({
-        position: progress.position,
-        heading: progress.heading,
-        pitch: INITIAL_PITCH,
-      });
+  const applyMovementDelta = (deltaMeters: number) => {
+    if (deltaMeters <= 0) return;
 
-      if (next >= totalPathMeters) {
+    setPathDistanceMeters((currentDistance) => {
+      const result = advanceAlongPath(
+        points,
+        currentDistance,
+        totalPathMeters,
+        deltaMeters
+      );
+      setView(result.view);
+
+      if (result.reachedEnd) {
         setIsWalking(false);
       }
 
-      return next;
+      return result.pathDistanceMeters;
     });
   };
 
   useEffect(() => {
-    setView(viewFromRouteProgress(destination.points, 0));
+    setView(viewFromRouteProgress(points, 0));
     setPathDistanceMeters(0);
     setElapsedSeconds(0);
     setIsWalking(false);
+    setLastStepDeltaMeters(0);
     lastProcessedStepsRef.current = 0;
-  }, [destination.id, destination.points]);
+    setStreetViewDebug(EMPTY_STREET_VIEW_DEBUG);
+  }, [destination.id, points]);
 
   useEffect(() => {
-    if (!isWalking || movementSource !== "manual") return;
-
-    const metersPerSecond = (speedKmh * 1000) / 3600;
-
-    const interval = window.setInterval(() => {
-      advancePathDistance(metersPerSecond);
-      setElapsedSeconds((current) => current + 1);
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isWalking, speedKmh, movementSource, destination.points, totalPathMeters]);
-
-  useEffect(() => {
-    if (!isWalking || movementSource !== "phone-steps") return;
+    if (!isWalking) return;
 
     const interval = window.setInterval(() => {
       setElapsedSeconds((current) => current + 1);
+
+      if (movementSource === "manual") {
+        const metersPerSecond = (speedKmh * 1000) / 3600;
+        applyMovementDelta(metersPerSecond);
+      }
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [isWalking, movementSource]);
+  }, [isWalking, movementSource, speedKmh, points, totalPathMeters]);
 
   useEffect(() => {
     if (!isWalking || movementSource !== "phone-steps") return;
@@ -100,16 +103,19 @@ export function useWalkSession(
 
     lastProcessedStepsRef.current = steps;
     const distanceMeters = deltaSteps * strideLengthMeters;
+    setLastStepDeltaMeters(distanceMeters);
     logPhoneSteps(steps, deltaSteps, distanceMeters);
-    advancePathDistance(distanceMeters);
-  }, [steps, isWalking, movementSource, strideLengthMeters, destination.points, totalPathMeters]);
+    applyMovementDelta(distanceMeters);
+  }, [steps, isWalking, movementSource, strideLengthMeters, points, totalPathMeters]);
 
   const reset = () => {
     setIsWalking(false);
     setElapsedSeconds(0);
     setPathDistanceMeters(0);
+    setLastStepDeltaMeters(0);
     lastProcessedStepsRef.current = 0;
-    setView(viewFromRouteProgress(destination.points, 0));
+    setView(viewFromRouteProgress(points, 0));
+    setStreetViewDebug(EMPTY_STREET_VIEW_DEBUG);
   };
 
   const distanceWalkedKm = pathDistanceMeters / 1000;
@@ -127,8 +133,14 @@ export function useWalkSession(
     distanceWalkedKm,
     totalDistanceKm,
     elapsedSeconds,
+    movementSource,
+    routeIndices,
+    lastStepDeltaMeters,
+    streetViewDebug,
+    setStreetViewDebug,
     resetStepProgress: () => {
       lastProcessedStepsRef.current = 0;
+      setLastStepDeltaMeters(0);
     },
   };
 }

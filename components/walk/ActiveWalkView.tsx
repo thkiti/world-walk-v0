@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Map } from "@vis.gl/react-google-maps";
 import { DestinationMapOverlay } from "@/components/map/DestinationMapOverlay";
 import { StreetViewPanel } from "@/components/walk/StreetViewPanel";
+import { WalkingDebugPanel } from "@/components/walk/WalkingDebugPanel";
 import { WalkingHud } from "@/components/walk/WalkingHud";
 import { usePhoneStepCounter } from "@/hooks/usePhoneStepCounter";
 import { useWalkSession } from "@/hooks/useWalkSession";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import type { MovementSource, WalkDestination } from "@/lib/types";
+import type { StreetViewDebugState, WalkDebugState } from "@/lib/walk-debug";
 import { GLASS_PANEL } from "@/lib/ui";
 
 type ActiveWalkViewProps = {
@@ -42,9 +44,36 @@ export function ActiveWalkView({
     steps,
   });
 
+  const { setStreetViewDebug, setIsWalking } = session;
+
   const wakeLockStatus = useWakeLock(session.isWalking);
 
-  const { setIsWalking } = session;
+  const handleStreetViewDebug = useCallback(
+    (debug: StreetViewDebugState) => {
+      setStreetViewDebug(debug);
+    },
+    [setStreetViewDebug]
+  );
+
+  const walkDebug = useMemo<WalkDebugState>(
+    () => ({
+      movementSource,
+      elapsedSeconds: session.elapsedSeconds,
+      pathDistanceMeters: session.pathDistanceMeters,
+      currentRouteIndex: session.routeIndices.currentIndex,
+      nextRouteIndex: session.routeIndices.nextIndex,
+      lastStepDeltaMeters: session.lastStepDeltaMeters,
+      streetView: session.streetViewDebug,
+    }),
+    [
+      movementSource,
+      session.elapsedSeconds,
+      session.pathDistanceMeters,
+      session.routeIndices,
+      session.lastStepDeltaMeters,
+      session.streetViewDebug,
+    ]
+  );
 
   useEffect(() => {
     if (autoStart) {
@@ -126,6 +155,8 @@ export function ActiveWalkView({
           elapsedSeconds={session.elapsedSeconds}
           heading={session.view.heading}
         />
+
+        <WalkingDebugPanel debug={walkDebug} />
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -135,6 +166,7 @@ export function ActiveWalkView({
           routePoints={destination.points}
           pathDistanceMeters={session.pathDistanceMeters}
           isWalking={session.isWalking}
+          onStreetViewDebug={handleStreetViewDebug}
         />
       </div>
 
