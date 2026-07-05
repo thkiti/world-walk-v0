@@ -1,0 +1,18 @@
+{
+  "id": "shibuya",
+  "title": "Walk @ Shibuya",
+  "place": "Shibuya",
+  "continent": "Asia",
+  "country": "Japan",
+  "city": "Tokyo",
+  "distanceKm": 1.1,
+  "estimatedMinutes": 16,
+  "difficulty": "Easy",
+  "points": [
+    { "lat": 35.65910, "lng": 139.69880 },
+    { "lat": 35.65980, "lng": 139.70020 },
+    { "lat": 35.66050, "lng": 139.70150 },
+    { "lat": 35.66120, "lng": 139.70280 },
+    { "lat": 35.65950, "lng": 139.70050 }
+  ]
+}

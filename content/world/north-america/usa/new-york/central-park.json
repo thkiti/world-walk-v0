@@ -1,0 +1,18 @@
+{
+  "id": "central-park",
+  "title": "Walk @ Central Park",
+  "place": "Central Park",
+  "continent": "North America",
+  "country": "United States",
+  "city": "New York",
+  "distanceKm": 2.0,
+  "estimatedMinutes": 28,
+  "difficulty": "Easy",
+  "points": [
+    { "lat": 40.78200, "lng": -73.96540 },
+    { "lat": 40.77980, "lng": -73.96680 },
+    { "lat": 40.77760, "lng": -73.96820 },
+    { "lat": 40.77540, "lng": -73.96960 },
+    { "lat": 40.77320, "lng": -73.97100 }
+  ]
+}

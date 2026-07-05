@@ -1,0 +1,18 @@
+{
+  "id": "louvre",
+  "title": "Walk @ Louvre",
+  "place": "Louvre",
+  "continent": "Europe",
+  "country": "France",
+  "city": "Paris",
+  "distanceKm": 1.2,
+  "estimatedMinutes": 18,
+  "difficulty": "Easy",
+  "points": [
+    { "lat": 48.86020, "lng": 2.33280 },
+    { "lat": 48.86080, "lng": 2.33450 },
+    { "lat": 48.86120, "lng": 2.33620 },
+    { "lat": 48.86060, "lng": 2.33760 },
+    { "lat": 48.86000, "lng": 2.33650 }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "eiffel-tower",
+  "title": "Walk @ Eiffel Tower",
+  "place": "Eiffel Tower",
+  "continent": "Europe",
+  "country": "France",
+  "city": "Paris",
+  "distanceKm": 0.8,
+  "estimatedMinutes": 12,
+  "difficulty": "Easy",
+  "points": [
+    { "lat": 48.85745, "lng": 2.29390 },
+    { "lat": 48.85810, "lng": 2.29420 },
+    { "lat": 48.85880, "lng": 2.29460 },
+    { "lat": 48.85940, "lng": 2.29510 },
+    { "lat": 48.85837, "lng": 2.29448 }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "montmartre",
+  "title": "Walk @ Montmartre",
+  "place": "Montmartre",
+  "continent": "Europe",
+  "country": "France",
+  "city": "Paris",
+  "distanceKm": 1.5,
+  "estimatedMinutes": 22,
+  "difficulty": "Moderate",
+  "points": [
+    { "lat": 48.88420, "lng": 2.33850 },
+    { "lat": 48.88520, "lng": 2.34020 },
+    { "lat": 48.88620, "lng": 2.34180 },
+    { "lat": 48.88670, "lng": 2.34310 },
+    { "lat": 48.88650, "lng": 2.34450 }
+  ]
+}

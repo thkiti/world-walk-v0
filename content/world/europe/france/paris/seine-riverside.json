@@ -1,0 +1,18 @@
+{
+  "id": "seine-riverside",
+  "title": "Walk @ Seine Riverside",
+  "place": "Seine Riverside",
+  "continent": "Europe",
+  "country": "France",
+  "city": "Paris",
+  "distanceKm": 1.8,
+  "estimatedMinutes": 26,
+  "difficulty": "Easy",
+  "points": [
+    { "lat": 48.85850, "lng": 2.32050 },
+    { "lat": 48.85920, "lng": 2.32380 },
+    { "lat": 48.86010, "lng": 2.32720 },
+    { "lat": 48.86100, "lng": 2.33050 },
+    { "lat": 48.86180, "lng": 2.33380 }
+  ]
+}

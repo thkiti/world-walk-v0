@@ -1,0 +1,18 @@
+{
+  "id": "arc-de-triomphe",
+  "title": "Walk @ Arc de Triomphe",
+  "place": "Arc de Triomphe",
+  "continent": "Europe",
+  "country": "France",
+  "city": "Paris",
+  "distanceKm": 0.6,
+  "estimatedMinutes": 10,
+  "difficulty": "Easy",
+  "points": [
+    { "lat": 48.87320, "lng": 2.29280 },
+    { "lat": 48.87350, "lng": 2.29380 },
+    { "lat": 48.87378, "lng": 2.29500 },
+    { "lat": 48.87390, "lng": 2.29620 },
+    { "lat": 48.87378, "lng": 2.29503 }
+  ]
+}
