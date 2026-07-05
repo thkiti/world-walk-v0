@@ -79,6 +79,7 @@ export function useWalkSession(destination: WalkDestination) {
     isWalking,
     setIsWalking,
     reset,
+    pathDistanceMeters,
     distanceWalkedKm,
     totalDistanceKm,
     elapsedSeconds,

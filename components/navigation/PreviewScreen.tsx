@@ -4,6 +4,7 @@ import { Map } from "@vis.gl/react-google-maps";
 import { DestinationMapOverlay } from "@/components/map/DestinationMapOverlay";
 import { FitBounds } from "@/components/map/FitBounds";
 import type { WalkDestination } from "@/lib/types";
+import { requestFullscreen } from "@/lib/fullscreen";
 import { GLASS_SHEET, TOUCH_BUTTON } from "@/lib/ui";
 
 type PreviewScreenProps = {
@@ -96,7 +97,10 @@ export function PreviewScreen({
         <button
           type="button"
           className={`${TOUCH_BUTTON} mt-5 w-full bg-zinc-900 text-center font-semibold text-white hover:bg-zinc-800`}
-          onClick={onStartWalk}
+          onClick={() => {
+            requestFullscreen();
+            onStartWalk();
+          }}
         >
           Start Walk
         </button>

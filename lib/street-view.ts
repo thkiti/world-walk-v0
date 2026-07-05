@@ -1,4 +1,5 @@
 import type { LatLng } from "@/lib/types";
+import { devLog } from "@/lib/dev-log";
 
 const LOOKUP_RADII_METERS = [50, 100, 200] as const;
 
@@ -72,8 +73,11 @@ function resultFromPanoramaData(
 
 export async function resolveStreetViewPanorama(
   service: google.maps.StreetViewService,
-  location: LatLng
+  location: LatLng,
+  options?: { log?: boolean }
 ): Promise<StreetViewLookupResult> {
+  const shouldLog = options?.log ?? process.env.NODE_ENV === "development";
+
   for (const radius of LOOKUP_RADII_METERS) {
     const { data, status } = await getPanoramaAtRadius(
       service,
@@ -86,14 +90,16 @@ export async function resolveStreetViewPanorama(
       ? latLngFromGoogle(data.location.latLng)
       : null;
 
-    console.log("[StreetView] getPanorama", {
-      requestedPosition: location,
-      returnedPosition,
-      status: streetViewStatusLabel(status),
-      radiusMeters: radius,
-      source: "OUTDOOR",
-      pano: data?.location?.pano ?? null,
-    });
+    if (shouldLog) {
+      devLog("[StreetView] getPanorama", {
+        requestedPosition: location,
+        returnedPosition,
+        status: streetViewStatusLabel(status),
+        radiusMeters: radius,
+        source: "OUTDOOR",
+        pano: data?.location?.pano ?? null,
+      });
+    }
 
     if (status === google.maps.StreetViewStatus.OK && data?.location?.latLng) {
       return resultFromPanoramaData(location, data, status, radius);
@@ -111,23 +117,27 @@ export async function resolveStreetViewPanorama(
     ? latLngFromGoogle(data.location.latLng)
     : null;
 
-  console.log("[StreetView] getPanorama", {
-    requestedPosition: location,
-    returnedPosition,
-    status: streetViewStatusLabel(status),
-    radiusMeters: fallbackRadius,
-    source: "DEFAULT",
-    pano: data?.location?.pano ?? null,
-  });
+  if (shouldLog) {
+    devLog("[StreetView] getPanorama", {
+      requestedPosition: location,
+      returnedPosition,
+      status: streetViewStatusLabel(status),
+      radiusMeters: fallbackRadius,
+      source: "DEFAULT",
+      pano: data?.location?.pano ?? null,
+    });
+  }
 
   if (status === google.maps.StreetViewStatus.OK && data?.location?.latLng) {
     return resultFromPanoramaData(location, data, status, fallbackRadius);
   }
 
-  console.warn("[StreetView] no panorama found after radius search", {
-    requestedPosition: location,
-    radiiMeters: LOOKUP_RADII_METERS,
-  });
+  if (shouldLog) {
+    devLog("[StreetView] no panorama found after radius search", {
+      requestedPosition: location,
+      radiiMeters: LOOKUP_RADII_METERS,
+    });
+  }
 
   return {
     requested: location,
@@ -149,14 +159,14 @@ export function applyStreetViewLookup(
     } else {
       panorama.setPosition(result.position);
     }
-    console.log("[StreetView] setPosition applied", {
+    devLog("[StreetView] setPosition applied", {
       requestedPosition: result.requested,
       appliedPosition: result.position,
       pano: result.pano,
       status: streetViewStatusLabel(result.status),
     });
   } else {
-    console.warn("[StreetView] setPosition skipped — no valid panorama", {
+    devLog("[StreetView] setPosition skipped — no valid panorama", {
       requestedPosition: result.requested,
       status: streetViewStatusLabel(result.status),
     });

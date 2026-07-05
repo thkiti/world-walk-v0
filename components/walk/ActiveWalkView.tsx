@@ -6,6 +6,7 @@ import { DestinationMapOverlay } from "@/components/map/DestinationMapOverlay";
 import { StreetViewPanel } from "@/components/walk/StreetViewPanel";
 import { WalkingHud } from "@/components/walk/WalkingHud";
 import { useWalkSession } from "@/hooks/useWalkSession";
+import { useWakeLock } from "@/hooks/useWakeLock";
 import type { WalkDestination } from "@/lib/types";
 import { GLASS_PANEL } from "@/lib/ui";
 
@@ -21,6 +22,7 @@ export function ActiveWalkView({
   onExit,
 }: ActiveWalkViewProps) {
   const session = useWalkSession(destination);
+  const wakeLockStatus = useWakeLock(session.isWalking);
 
   const { setIsWalking } = session;
 
@@ -51,6 +53,7 @@ export function ActiveWalkView({
           speedKmh={session.speedKmh}
           setSpeedKmh={session.setSpeedKmh}
           isWalking={session.isWalking}
+          wakeLockStatus={wakeLockStatus}
           onPause={() => session.setIsWalking(false)}
           onResume={() => session.setIsWalking(true)}
           onReset={session.reset}
@@ -63,7 +66,13 @@ export function ActiveWalkView({
       </div>
 
       <div className="relative min-h-0 flex-1">
-        <StreetViewPanel view={session.view} setView={session.setView} />
+        <StreetViewPanel
+          view={session.view}
+          setView={session.setView}
+          routePoints={destination.points}
+          pathDistanceMeters={session.pathDistanceMeters}
+          isWalking={session.isWalking}
+        />
       </div>
 
       <div

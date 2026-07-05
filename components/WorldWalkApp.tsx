@@ -12,6 +12,7 @@ import {
   getDestinationById,
   getDestinationsForCity,
 } from "@/lib/catalog";
+import { exitFullscreenIfActive } from "@/lib/fullscreen";
 import type { NavScreen } from "@/lib/types";
 
 export function WorldWalkApp() {
@@ -155,9 +156,10 @@ export function WorldWalkApp() {
     return (
       <ActiveWalkView
         destination={destination}
-        onExit={() =>
-          setScreen({ step: "preview", destinationId: destination.id })
-        }
+        onExit={() => {
+          exitFullscreenIfActive();
+          setScreen({ step: "preview", destinationId: destination.id });
+        }}
       />
     );
   }

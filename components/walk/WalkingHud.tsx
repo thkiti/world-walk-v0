@@ -2,12 +2,14 @@
 
 import { formatElapsed } from "@/lib/geo";
 import { GLASS_PANEL } from "@/lib/ui";
+import type { WakeLockDisplayStatus } from "@/lib/wake-lock";
 
 type WalkingHudProps = {
   destinationTitle: string;
   speedKmh: number;
   setSpeedKmh: (speed: number) => void;
   isWalking: boolean;
+  wakeLockStatus: WakeLockDisplayStatus;
   onPause: () => void;
   onResume: () => void;
   onReset: () => void;
@@ -18,11 +20,38 @@ type WalkingHudProps = {
   heading: number;
 };
 
+function WakeLockIndicator({
+  status,
+}: {
+  status: WakeLockDisplayStatus;
+}) {
+  if (status === "active") {
+    return (
+      <p className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-800">
+        <span aria-hidden="true">☀</span>
+        Screen awake
+      </p>
+    );
+  }
+
+  if (status === "unavailable") {
+    return (
+      <p className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-600">
+        <span aria-hidden="true">○</span>
+        Wake lock unavailable
+      </p>
+    );
+  }
+
+  return null;
+}
+
 export function WalkingHud({
   destinationTitle,
   speedKmh,
   setSpeedKmh,
   isWalking,
+  wakeLockStatus,
   onPause,
   onResume,
   onReset,
@@ -62,6 +91,8 @@ export function WalkingHud({
           {formatElapsed(elapsedSeconds)} · {speedKmh.toFixed(1)} km/h ·{" "}
           {heading.toFixed(0)}°
         </p>
+
+        <WakeLockIndicator status={wakeLockStatus} />
 
         <button
           type="button"

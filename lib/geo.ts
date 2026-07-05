@@ -135,3 +135,32 @@ export function formatElapsed(seconds: number): string {
   const remainingSeconds = seconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
+
+export function getCumulativeDistances(points: LatLng[]): number[] {
+  const cumulative = [0];
+  for (let i = 0; i < points.length - 1; i++) {
+    cumulative.push(cumulative[i] + haversineDistance(points[i], points[i + 1]));
+  }
+  return cumulative;
+}
+
+/** Route vertex index the walker has reached at the given path distance. */
+export function getRoutePointIndexForDistance(
+  points: LatLng[],
+  distanceMeters: number
+): number {
+  if (points.length === 0) return 0;
+
+  const cumulative = getCumulativeDistances(points);
+  let index = 0;
+
+  for (let i = 0; i < cumulative.length; i++) {
+    if (distanceMeters >= cumulative[i]) {
+      index = i;
+    } else {
+      break;
+    }
+  }
+
+  return index;
+}
