@@ -153,24 +153,63 @@ export function applyStreetViewLookup(
   result: StreetViewLookupResult,
   pov: { heading: number; pitch: number }
 ): void {
-  if (result.status === google.maps.StreetViewStatus.OK) {
-    if (result.pano) {
-      panorama.setPano(result.pano);
-    } else {
-      panorama.setPosition(result.position);
-    }
-    devLog("[StreetView] setPosition applied", {
+  const previousPanoramaId = panorama.getPano?.() || null;
+  const applied = applyPanoramaIfChanged(
+    panorama,
+    result,
+    pov,
+    previousPanoramaId
+  );
+
+  if (!applied && result.status === google.maps.StreetViewStatus.OK) {
+    devLog("[StreetView] setPosition skipped — same pano id", {
       requestedPosition: result.requested,
-      appliedPosition: result.position,
       pano: result.pano,
       status: streetViewStatusLabel(result.status),
     });
-  } else {
-    devLog("[StreetView] setPosition skipped — no valid panorama", {
+  }
+}
+
+export function applyPanoramaIfChanged(
+  panorama: google.maps.StreetViewPanorama,
+  result: StreetViewLookupResult,
+  pov: { heading: number; pitch: number },
+  previousPanoramaId: string | null
+): boolean {
+  const newPanoramaId = result.pano ?? null;
+
+  devLog("[StreetView] panorama id", {
+    previousPanoramaId,
+    newPanoramaId,
+  });
+
+  if (result.status !== google.maps.StreetViewStatus.OK) {
+    panorama.setPov(pov);
+    return false;
+  }
+
+  if (newPanoramaId && newPanoramaId !== previousPanoramaId) {
+    panorama.setPano(newPanoramaId);
+    panorama.setPov(pov);
+    devLog("[StreetView] setPano applied", {
+      previousPanoramaId,
+      newPanoramaId,
+      appliedPosition: result.position,
+    });
+    return true;
+  }
+
+  if (!newPanoramaId) {
+    panorama.setPosition(result.position);
+    panorama.setPov(pov);
+    devLog("[StreetView] setPosition applied", {
       requestedPosition: result.requested,
+      appliedPosition: result.position,
       status: streetViewStatusLabel(result.status),
     });
+    return true;
   }
 
   panorama.setPov(pov);
+  return false;
 }

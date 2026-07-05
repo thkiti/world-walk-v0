@@ -3,13 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApiIsLoaded } from "@vis.gl/react-google-maps";
 import { devLog } from "@/lib/dev-log";
-import {
-  getRouteProgress,
-  moveForward,
-} from "@/lib/geo";
+import { getRouteProgress, moveForward } from "@/lib/geo";
 import { StreetViewPrefetchCache } from "@/lib/street-view-prefetch";
 import {
-  applyStreetViewLookup,
+  applyPanoramaIfChanged,
   resolveStreetViewPanorama,
   streetViewStatusLabel,
   type StreetViewLookupResult,
@@ -55,6 +52,38 @@ function getAppliedPanoLatLng(
   }
 }
 
+async function resolvePanoramaForProgress(
+  service: google.maps.StreetViewService,
+  cache: StreetViewPrefetchCache,
+  routePoints: LatLng[],
+  routeIndex: number,
+  targetPosition: LatLng
+): Promise<StreetViewLookupResult> {
+  const atPosition = await resolveStreetViewPanorama(service, targetPosition);
+  if (
+    atPosition.status === google.maps.StreetViewStatus.OK &&
+    atPosition.pano
+  ) {
+    return atPosition;
+  }
+
+  const cached = cache.get(routeIndex);
+  if (cached?.status === google.maps.StreetViewStatus.OK) {
+    return cached;
+  }
+
+  const atRoutePoint = await cache.prefetch(
+    service,
+    routeIndex,
+    routePoints[routeIndex]
+  );
+  if (atRoutePoint.status === google.maps.StreetViewStatus.OK) {
+    return atRoutePoint;
+  }
+
+  return atPosition;
+}
+
 export function StreetViewPanel({
   view,
   setView,
@@ -71,8 +100,12 @@ export function StreetViewPanel({
   const lastAppliedPanoRef = useRef<string | null>(null);
   const lastAppliedDistanceRef = useRef(0);
   const lastAppliedIndexRef = useRef<number | null>(null);
+  const previousRouteIndexRef = useRef<number | null>(null);
+  const renderCountRef = useRef(0);
   const [panoramaReady, setPanoramaReady] = useState(false);
   const apiIsLoaded = useApiIsLoaded();
+
+  renderCountRef.current += 1;
 
   const routeIndices = useMemo(() => {
     if (!routePoints?.length) {
@@ -80,6 +113,16 @@ export function StreetViewPanel({
     }
     return getRouteIndices(routePoints, pathDistanceMeters);
   }, [routePoints, pathDistanceMeters]);
+
+  const currentRouteIndex = routeIndices.currentIndex;
+
+  useEffect(() => {
+    devLog("[StreetViewPanel] re-render after route index change", {
+      currentRouteIndex,
+      pathDistanceMeters,
+      renderCount: renderCountRef.current,
+    });
+  }, [currentRouteIndex, pathDistanceMeters]);
 
   const reportDebug = (
     lookupStatus: string,
@@ -119,6 +162,7 @@ export function StreetViewPanel({
       lastAppliedPanoRef.current = null;
       lastAppliedDistanceRef.current = 0;
       lastAppliedIndexRef.current = null;
+      previousRouteIndexRef.current = null;
       setPanoramaReady(false);
     };
   }, [apiIsLoaded]);
@@ -130,9 +174,9 @@ export function StreetViewPanel({
     prefetchCacheRef.current.prefetchAhead(
       service,
       routePoints,
-      routeIndices.currentIndex
+      currentRouteIndex
     );
-  }, [panoramaReady, routePoints, routeIndices.currentIndex]);
+  }, [panoramaReady, routePoints, currentRouteIndex]);
 
   useEffect(() => {
     const panorama = panoramaRef.current;
@@ -148,58 +192,75 @@ export function StreetViewPanel({
       return;
     }
 
+    const previousIndex = previousRouteIndexRef.current;
+    if (previousIndex === currentRouteIndex) {
+      return;
+    }
+
+    devLog("[StreetView] route index change", {
+      previousIndex,
+      currentIndex: currentRouteIndex,
+    });
+
+    previousRouteIndexRef.current = currentRouteIndex;
+
     const pov = { heading: view.heading, pitch: view.pitch };
-    const { currentIndex, nextIndex } = routeIndices;
     const targetPosition = getRouteProgress(
       routePoints,
       pathDistanceMeters
     ).position;
+    const previousPanoramaId =
+      lastAppliedPanoRef.current ?? getAppliedPanoId(panorama);
+    const generation = ++lookupGenerationRef.current;
 
-    const tryApply = (result: StreetViewLookupResult, generation: number) => {
+    void resolvePanoramaForProgress(
+      service,
+      prefetchCacheRef.current,
+      routePoints,
+      currentRouteIndex,
+      targetPosition
+    ).then((result) => {
       if (generation !== lookupGenerationRef.current) return;
 
-      reportDebug(streetViewStatusLabel(result.status));
+      const applied = applyPanoramaIfChanged(
+        panorama,
+        result,
+        pov,
+        previousPanoramaId
+      );
 
-      if (result.status !== google.maps.StreetViewStatus.OK) {
-        devLog("[StreetView] stuck", {
-          reason: "lookup failed",
-          pathDistanceMeters,
-          distanceSinceLastApply:
-            pathDistanceMeters - lastAppliedDistanceRef.current,
-          currentIndex,
-          nextIndex,
-          status: streetViewStatusLabel(result.status),
-        });
-        panorama.setPov(pov);
+      if (applied) {
+        lastAppliedPanoRef.current = result.pano ?? getAppliedPanoId(panorama);
+        lastAppliedIndexRef.current = currentRouteIndex;
+        lastAppliedDistanceRef.current = pathDistanceMeters;
+        reportDebug("INDEX_CHANGED");
         return;
       }
 
-      const previousPano = lastAppliedPanoRef.current;
-      applyStreetViewLookup(panorama, result, pov);
-      const appliedPano = result.pano ?? getAppliedPanoId(panorama);
+      reportDebug("INDEX_SAME_PANO");
+    });
+  }, [
+    currentRouteIndex,
+    panoramaReady,
+    routePoints,
+    pathDistanceMeters,
+    view.heading,
+    view.pitch,
+    onStreetViewDebug,
+  ]);
 
-      if (appliedPano === previousPano && previousPano !== null) {
-        devLog("[StreetView] stuck", {
-          reason: "same pano id after advance",
-          pathDistanceMeters,
-          distanceSinceLastApply:
-            pathDistanceMeters - lastAppliedDistanceRef.current,
-          currentIndex,
-          pano: appliedPano,
-        });
-      }
-
-      lastAppliedPanoRef.current = appliedPano;
-      lastAppliedDistanceRef.current = pathDistanceMeters;
-      lastAppliedIndexRef.current = currentIndex;
-      reportDebug("OK");
-    };
+  useEffect(() => {
+    const panorama = panoramaRef.current;
+    const service = serviceRef.current;
+    if (!panoramaReady || !panorama || !service || !routePoints?.length) {
+      return;
+    }
 
     if (
       !shouldAdvancePanorama(
         pathDistanceMeters,
         lastAppliedDistanceRef.current,
-        currentIndex,
+        currentRouteIndex,
         lastAppliedIndexRef.current
       )
     ) {
@@ -207,44 +268,76 @@ export function StreetViewPanel({
       return;
     }
 
+    const pov = { heading: view.heading, pitch: view.pitch };
+    const targetPosition = getRouteProgress(
+      routePoints,
+      pathDistanceMeters
+    ).position;
+    const previousPanoramaId =
+      lastAppliedPanoRef.current ?? getAppliedPanoId(panorama);
     const generation = ++lookupGenerationRef.current;
-    const cached = prefetchCacheRef.current.get(currentIndex);
 
-    devLog("[StreetView] route point", {
-      currentIndex,
-      prefetchedIndex: nextIndex,
-      panoramaStatus: cached
-        ? streetViewStatusLabel(cached.status)
-        : "PENDING",
+    devLog("[StreetView] distance advance lookup", {
       pathDistanceMeters,
+      currentRouteIndex,
+      targetPosition,
     });
 
-    const resolveAndApply = async () => {
-      if (cached?.status === google.maps.StreetViewStatus.OK) {
-        tryApply(cached, generation);
+    void resolvePanoramaForProgress(
+      service,
+      prefetchCacheRef.current,
+      routePoints,
+      currentRouteIndex,
+      targetPosition
+    ).then((result) => {
+      if (generation !== lookupGenerationRef.current) return;
+
+      if (result.status !== google.maps.StreetViewStatus.OK) {
+        devLog("[StreetView] stuck", {
+          reason: "lookup failed on distance advance",
+          pathDistanceMeters,
+          currentRouteIndex,
+          status: streetViewStatusLabel(result.status),
+        });
+        panorama.setPov(pov);
+        reportDebug(streetViewStatusLabel(result.status));
         return;
       }
 
-      const pointResult = await prefetchCacheRef.current.prefetch(
-        service,
-        currentIndex,
-        routePoints[currentIndex]
+      const applied = applyPanoramaIfChanged(
+        panorama,
+        result,
+        pov,
+        previousPanoramaId
       );
 
-      if (pointResult.status === google.maps.StreetViewStatus.OK) {
-        tryApply(pointResult, generation);
+      if (applied) {
+        lastAppliedPanoRef.current = result.pano ?? getAppliedPanoId(panorama);
+        lastAppliedIndexRef.current = currentRouteIndex;
+        lastAppliedDistanceRef.current = pathDistanceMeters;
+        reportDebug("DISTANCE_CHANGED");
         return;
       }
 
-      const positionResult = await resolveStreetViewPanorama(
-        service,
-        targetPosition
-      );
-      tryApply(positionResult, generation);
-    };
-
-    void resolveAndApply();
-  }, [pathDistanceMeters, routePoints, routeIndices, panoramaReady, onStreetViewDebug]);
+      panorama.setPosition(result.position);
+      panorama.setPov(pov);
+      lastAppliedDistanceRef.current = pathDistanceMeters;
+      devLog("[StreetView] setPosition nudge — same pano id", {
+        previousPanoramaId,
+        newPanoramaId: result.pano,
+        targetPosition,
+      });
+      reportDebug("DISTANCE_SAME_PANO");
+    });
+  }, [
+    pathDistanceMeters,
+    currentRouteIndex,
+    routePoints,
+    panoramaReady,
+    view.heading,
+    view.pitch,
+    onStreetViewDebug,
+  ]);
 
   useEffect(() => {
     const panorama = panoramaRef.current;
@@ -254,6 +347,8 @@ export function StreetViewPanel({
 
     const pov = { heading: view.heading, pitch: view.pitch };
     const generation = ++lookupGenerationRef.current;
+    const previousPanoramaId =
+      lastAppliedPanoRef.current ?? getAppliedPanoId(panorama);
 
     devLog("[StreetView] resolving panorama for position", {
       requestedPosition: view.position,
@@ -261,7 +356,13 @@ export function StreetViewPanel({
 
     void resolveStreetViewPanorama(service, view.position).then((result) => {
       if (generation !== lookupGenerationRef.current) return;
-      applyStreetViewLookup(panorama, result, pov);
+
+      if (
+        applyPanoramaIfChanged(panorama, result, pov, previousPanoramaId)
+      ) {
+        lastAppliedPanoRef.current = result.pano ?? getAppliedPanoId(panorama);
+      }
+
       reportDebug(streetViewStatusLabel(result.status), panorama);
     });
   }, [
