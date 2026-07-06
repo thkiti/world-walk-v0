@@ -1,0 +1,13 @@
+{
+  "id": "shibuya-crossing",
+  "title": "Shibuya Crossing",
+  "place": "Shibuya Crossing",
+  "continent": "Asia",
+  "country": "Japan",
+  "city": "Tokyo",
+  "streetViewCoverage": "Excellent",
+  "description": "The iconic scramble crossing at the heart of Shibuya.",
+  "tags": ["iconic", "crossing", "tokyo"],
+  "startPosition": { "lat": 35.6595, "lng": 139.7005 },
+  "initialHeading": 180
+}

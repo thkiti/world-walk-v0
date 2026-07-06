@@ -1,57 +1,54 @@
-import {
-  getRoutePointIndexForDistance,
-  getRouteProgress,
-  INITIAL_PITCH,
-} from "@/lib/geo";
+import { haversineDistance, INITIAL_PITCH, moveForward } from "@/lib/geo";
 import type { LatLng, StreetViewState } from "@/lib/types";
 
 export const PANORAMA_ADVANCE_THRESHOLD_METERS = 5;
+export const BREADCRUMB_MIN_DISTANCE_METERS = 3;
 
-export type PathAdvanceResult = {
-  pathDistanceMeters: number;
+export type ForwardAdvanceResult = {
   view: StreetViewState;
-  reachedEnd: boolean;
+  breadcrumbs: LatLng[];
+  totalDistanceMeters: number;
 };
 
-export function advanceAlongPath(
-  points: LatLng[],
-  currentDistanceMeters: number,
-  totalPathMeters: number,
+export function advanceForward(
+  view: StreetViewState,
+  breadcrumbs: LatLng[],
+  totalDistanceMeters: number,
   deltaMeters: number
-): PathAdvanceResult {
-  const next = Math.min(currentDistanceMeters + deltaMeters, totalPathMeters);
-  const progress = getRouteProgress(points, next);
+): ForwardAdvanceResult {
+  const newPosition = moveForward(view.position, view.heading, deltaMeters);
+  const newView: StreetViewState = {
+    position: newPosition,
+    heading: view.heading,
+    pitch: view.pitch,
+  };
+
+  const newTotal = totalDistanceMeters + deltaMeters;
+  const lastBreadcrumb = breadcrumbs[breadcrumbs.length - 1];
+  const shouldAppend =
+    !lastBreadcrumb ||
+    haversineDistance(lastBreadcrumb, newPosition) >=
+      BREADCRUMB_MIN_DISTANCE_METERS;
 
   return {
-    pathDistanceMeters: next,
-    view: {
-      position: progress.position,
-      heading: progress.heading,
-      pitch: INITIAL_PITCH,
-    },
-    reachedEnd: next >= totalPathMeters,
+    view: newView,
+    breadcrumbs: shouldAppend
+      ? [...breadcrumbs, newPosition]
+      : breadcrumbs,
+    totalDistanceMeters: newTotal,
   };
 }
 
-export function getRouteIndices(
-  points: LatLng[],
-  pathDistanceMeters: number
-): { currentIndex: number; nextIndex: number } {
-  const currentIndex = getRoutePointIndexForDistance(points, pathDistanceMeters);
-  const nextIndex = Math.min(currentIndex + 1, Math.max(points.length - 1, 0));
-  return { currentIndex, nextIndex };
-}
-
 export function shouldAdvancePanorama(
-  pathDistanceMeters: number,
-  lastAppliedDistanceMeters: number,
-  currentRouteIndex: number,
-  lastAppliedRouteIndex: number | null
+  currentPosition: LatLng,
+  lastAppliedPosition: LatLng | null,
+  lastAppliedPanoId: string | null,
+  newPanoId: string | null
 ): boolean {
-  if (lastAppliedRouteIndex === null) return true;
-  if (currentRouteIndex !== lastAppliedRouteIndex) return true;
+  if (!lastAppliedPosition) return true;
+  if (newPanoId && newPanoId !== lastAppliedPanoId) return true;
   return (
-    pathDistanceMeters - lastAppliedDistanceMeters >=
+    haversineDistance(currentPosition, lastAppliedPosition) >=
     PANORAMA_ADVANCE_THRESHOLD_METERS
   );
 }

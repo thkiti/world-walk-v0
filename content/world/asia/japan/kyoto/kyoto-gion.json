@@ -1,0 +1,13 @@
+{
+  "id": "venice",
+  "title": "Venice",
+  "place": "Venice",
+  "continent": "Europe",
+  "country": "Italy",
+  "city": "Venice",
+  "streetViewCoverage": "Good",
+  "description": "Canals, bridges, and narrow calle near the Rialto.",
+  "tags": ["canals", "historic", "italy"],
+  "startPosition": { "lat": 45.4343, "lng": 12.3388 },
+  "initialHeading": 45
+}

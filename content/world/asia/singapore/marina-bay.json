@@ -1,0 +1,13 @@
+{
+  "id": "kyoto-gion",
+  "title": "Kyoto Gion",
+  "place": "Kyoto Gion",
+  "continent": "Asia",
+  "country": "Japan",
+  "city": "Kyoto",
+  "streetViewCoverage": "Good",
+  "description": "Traditional streets of the Gion district.",
+  "tags": ["historic", "traditional", "kyoto"],
+  "startPosition": { "lat": 35.0037, "lng": 135.7788 },
+  "initialHeading": 180
+}

@@ -1,0 +1,13 @@
+{
+  "id": "covent-garden",
+  "title": "Covent Garden",
+  "place": "Covent Garden",
+  "continent": "Europe",
+  "country": "United Kingdom",
+  "city": "London",
+  "streetViewCoverage": "Excellent",
+  "description": "Historic market piazza and surrounding streets in central London.",
+  "tags": ["market", "london", "historic"],
+  "startPosition": { "lat": 51.5118, "lng": -0.1223 },
+  "initialHeading": 90
+}

@@ -1,7 +1,6 @@
 import type { MovementSource } from "@/lib/types";
 
 export const MOVEMENT_SOURCE_LABELS: Record<MovementSource, string> = {
-  manual: "Manual Speed",
   "phone-steps": "Phone Steps (this device)",
   "remote-phone-sensor": "Remote Phone Sensor",
 };

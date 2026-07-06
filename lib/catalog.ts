@@ -1,63 +1,28 @@
 import type { WalkDestination } from "@/lib/types";
 
 import champsElysees from "@/content/world/europe/france/paris/champs-elysees.json";
+import shibuyaCrossing from "@/content/world/asia/japan/tokyo/shibuya-crossing.json";
+import timesSquare from "@/content/world/north-america/usa/new-york/times-square.json";
+import coventGarden from "@/content/world/europe/united-kingdom/london/covent-garden.json";
+import venice from "@/content/world/europe/italy/venice/venice.json";
+import kyotoGion from "@/content/world/asia/japan/kyoto/kyoto-gion.json";
+import marinaBay from "@/content/world/asia/singapore/marina-bay.json";
 
-export const CONTINENTS = [
-  "Europe",
-  "Asia",
-  "North America",
-  "South America",
-  "Africa",
-  "Oceania",
-] as const;
+export const CURATED_PLACES: WalkDestination[] = [
+  champsElysees,
+  shibuyaCrossing,
+  timesSquare,
+  coventGarden,
+  venice,
+  kyotoGion,
+  marinaBay,
+];
 
-export const COUNTRIES: Record<string, string[]> = {
-  Europe: ["France", "United Kingdom", "Italy", "Spain", "Germany"],
-  Asia: ["Japan", "Thailand", "Singapore"],
-  "North America": ["United States", "Canada", "Mexico"],
-  "South America": ["Brazil", "Argentina", "Chile"],
-  Africa: ["South Africa", "Morocco", "Egypt"],
-  Oceania: ["Australia", "New Zealand"],
-};
-
-export const CITIES: Record<string, Record<string, string[]>> = {
-  Europe: {
-    France: ["Paris", "Lyon", "Nice", "Marseille"],
-    "United Kingdom": ["London", "Edinburgh"],
-    Italy: ["Rome", "Florence"],
-    Spain: ["Barcelona", "Madrid"],
-    Germany: ["Berlin", "Munich"],
-  },
-  Asia: {
-    Japan: ["Tokyo", "Kyoto", "Osaka"],
-    Thailand: ["Bangkok", "Chiang Mai"],
-    Singapore: ["Singapore"],
-  },
-  "North America": {
-    "United States": ["New York", "San Francisco", "Chicago"],
-    Canada: ["Toronto", "Vancouver"],
-    Mexico: ["Mexico City"],
-  },
-  "South America": {
-    Brazil: ["Rio de Janeiro", "São Paulo"],
-    Argentina: ["Buenos Aires"],
-    Chile: ["Santiago"],
-  },
-  Africa: {
-    "South Africa": ["Cape Town"],
-    Morocco: ["Marrakech"],
-    Egypt: ["Cairo"],
-  },
-  Oceania: {
-    Australia: ["Sydney", "Melbourne"],
-    "New Zealand": ["Auckland", "Wellington"],
-  },
-};
-
-export const DESTINATIONS: WalkDestination[] = [champsElysees];
+/** @deprecated Use CURATED_PLACES */
+export const DESTINATIONS = CURATED_PLACES;
 
 const destinationById = new Map(
-  DESTINATIONS.map((destination) => [destination.id, destination])
+  CURATED_PLACES.map((destination) => [destination.id, destination])
 );
 
 function normalizeSearchText(text: string): string {
@@ -78,10 +43,8 @@ function destinationSearchText(destination: WalkDestination): string {
       destination.country,
       destination.continent,
       destination.description ?? "",
-      destination.quality ?? "",
       destination.streetViewCoverage ?? "",
       ...(destination.tags ?? []),
-      ...(destination.whyWalkHere ?? []),
     ].join(" ")
   );
 }
@@ -90,32 +53,11 @@ export function getDestinationById(id: string): WalkDestination | undefined {
   return destinationById.get(id);
 }
 
-export function getDestinationsForCity(
-  continent: string,
-  country: string,
-  city: string
-): WalkDestination[] {
-  return DESTINATIONS.filter(
-    (destination) =>
-      destination.continent === continent &&
-      destination.country === country &&
-      destination.city === city
-  );
-}
-
 export function searchDestinations(query: string): WalkDestination[] {
   const normalized = normalizeSearchText(query);
   if (!normalized) return [];
 
-  return DESTINATIONS.filter((destination) =>
+  return CURATED_PLACES.filter((destination) =>
     destinationSearchText(destination).includes(normalized)
   );
-}
-
-export function cityHasDestinations(
-  continent: string,
-  country: string,
-  city: string
-): boolean {
-  return getDestinationsForCity(continent, country, city).length > 0;
 }

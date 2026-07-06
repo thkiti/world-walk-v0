@@ -1,0 +1,13 @@
+{
+  "id": "times-square",
+  "title": "Times Square",
+  "place": "Times Square",
+  "continent": "North America",
+  "country": "United States",
+  "city": "New York",
+  "streetViewCoverage": "Excellent",
+  "description": "The bright heart of Midtown Manhattan.",
+  "tags": ["iconic", "city", "new-york"],
+  "startPosition": { "lat": 40.758, "lng": -73.9855 },
+  "initialHeading": 290
+}

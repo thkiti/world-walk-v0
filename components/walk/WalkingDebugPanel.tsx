@@ -18,10 +18,8 @@ export function WalkingDebugPanel({ debug }: WalkingDebugPanelProps) {
       <p className="mb-1 font-semibold text-amber-300">Walking Debug</p>
       <p>source: {debug.movementSource}</p>
       <p>elapsed: {debug.elapsedSeconds}s</p>
-      <p>path: {debug.pathDistanceMeters.toFixed(1)} m</p>
-      <p>
-        route idx: {debug.currentRouteIndex} → {debug.nextRouteIndex}
-      </p>
+      <p>walked: {debug.totalDistanceMeters.toFixed(1)} m</p>
+      <p>breadcrumbs: {debug.breadcrumbCount}</p>
       <p>pano: {streetView.panoramaPanoId ?? "—"}</p>
       <p>
         pano lat/lng:{" "}

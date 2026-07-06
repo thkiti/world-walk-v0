@@ -16,8 +16,6 @@ type RemoteSensorState = ReturnType<typeof useRemoteMovementSensor>;
 
 type WalkingHudProps = {
   destinationTitle: string;
-  speedKmh: number;
-  setSpeedKmh: (speed: number) => void;
   isWalking: boolean;
   wakeLockStatus: WakeLockDisplayStatus;
   movementSource: MovementSource;
@@ -33,7 +31,6 @@ type WalkingHudProps = {
   onReset: () => void;
   onExit: () => void;
   distanceWalkedKm: number;
-  totalDistanceKm: number;
   elapsedSeconds: number;
   heading: number;
 };
@@ -66,8 +63,6 @@ function WakeLockIndicator({
 
 export function WalkingHud({
   destinationTitle,
-  speedKmh,
-  setSpeedKmh,
   isWalking,
   wakeLockStatus,
   movementSource,
@@ -83,15 +78,9 @@ export function WalkingHud({
   onReset,
   onExit,
   distanceWalkedKm,
-  totalDistanceKm,
   elapsedSeconds,
   heading,
 }: WalkingHudProps) {
-  const progressPercent =
-    totalDistanceKm > 0
-      ? Math.min(100, (distanceWalkedKm / totalDistanceKm) * 100)
-      : 0;
-
   const stepDistanceMeters = stepsToDistanceMeters(steps, strideLengthMeters);
   const estimatedPaceKmh = estimatePaceKmh(stepDistanceMeters, elapsedSeconds);
   const remotePaceKmh = estimatePaceKmh(
@@ -102,38 +91,23 @@ export function WalkingHud({
   if (isWalking) {
     return (
       <div
-        className={`absolute right-3 bottom-3 left-3 z-10 p-3 md:right-4 md:bottom-4 md:left-auto md:w-80 ${GLASS_PANEL}`}
+        className={`absolute right-3 bottom-3 left-3 z-10 p-3 md:right-4 md:bottom-4 md:left-auto md:w-72 ${GLASS_PANEL}`}
       >
         <p className="truncate text-sm font-semibold text-zinc-900">
           {destinationTitle}
         </p>
 
-        <div className="mt-2">
-          <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
-            <div
-              className="h-full rounded-full bg-blue-600 transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-          <p className="mt-1.5 text-xs font-medium text-zinc-800">
-            {distanceWalkedKm.toFixed(2)} / {totalDistanceKm.toFixed(2)} km
-          </p>
-        </div>
-
         <p className="mt-1 text-xs text-zinc-700">
-          {formatElapsed(elapsedSeconds)} ·{" "}
-          {movementSource === "phone-steps"
-            ? `${estimatedPaceKmh.toFixed(1)} km/h pace`
-            : movementSource === "remote-phone-sensor"
-              ? `${remotePaceKmh.toFixed(1)} km/h remote pace`
-              : `${speedKmh.toFixed(1)} km/h`}{" "}
-          · {heading.toFixed(0)}°
+          {formatElapsed(elapsedSeconds)} · {heading.toFixed(0)}° facing
+        </p>
+
+        <p className="mt-0.5 text-xs text-zinc-600">
+          {distanceWalkedKm.toFixed(2)} km walked
         </p>
 
         {movementSource === "phone-steps" && (
           <p className="mt-1 text-[11px] text-zinc-600">
-            {steps} steps · {(stepDistanceMeters / 1000).toFixed(2)} km from
-            steps
+            {steps} steps · {estimatedPaceKmh.toFixed(1)} km/h pace
           </p>
         )}
 
@@ -150,7 +124,7 @@ export function WalkingHud({
 
         <button
           type="button"
-          className="mt-3 min-h-14 w-full rounded-xl bg-zinc-900/90 text-base font-semibold text-white shadow-sm backdrop-blur-sm hover:bg-zinc-900 active:scale-[0.98]"
+          className="mt-3 min-h-12 w-full rounded-xl bg-zinc-900/90 text-sm font-semibold text-white shadow-sm backdrop-blur-sm hover:bg-zinc-900 active:scale-[0.98]"
           onClick={onPause}
         >
           Pause
@@ -160,7 +134,7 @@ export function WalkingHud({
           className="mt-2 w-full rounded-lg py-1.5 text-xs font-medium text-zinc-700 hover:text-zinc-900"
           onClick={onReset}
         >
-          Reset
+          Reset position
         </button>
       </div>
     );
@@ -168,30 +142,19 @@ export function WalkingHud({
 
   return (
     <div
-      className={`absolute right-3 bottom-3 left-3 z-10 p-3 md:right-4 md:bottom-4 md:left-auto md:w-80 ${GLASS_PANEL}`}
+      className={`absolute right-3 bottom-3 left-3 z-10 p-3 md:right-4 md:bottom-4 md:left-auto md:w-72 ${GLASS_PANEL}`}
     >
       <p className="truncate text-sm font-semibold text-zinc-900">
         {destinationTitle}
       </p>
 
-      <div className="mt-2">
-        <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
-          <div
-            className="h-full rounded-full bg-blue-600 transition-all duration-300"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-        <p className="mt-1.5 text-xs font-medium text-zinc-800">
-          {distanceWalkedKm.toFixed(2)} / {totalDistanceKm.toFixed(2)} km
-        </p>
-      </div>
-
       <p className="mt-1 text-xs text-zinc-700">
-        {formatElapsed(elapsedSeconds)} · {heading.toFixed(0)}°
+        {formatElapsed(elapsedSeconds)} · {heading.toFixed(0)}° ·{" "}
+        {distanceWalkedKm.toFixed(2)} km walked
       </p>
 
       <label className="mt-3 block text-xs text-zinc-800">
-        Movement Source
+        Movement
         <select
           value={movementSource}
           onChange={(event) =>
@@ -209,25 +172,12 @@ export function WalkingHud({
         </select>
       </label>
 
-      {movementSource === "manual" && (
-        <label className="mt-2 block text-xs text-zinc-800">
-          Speed: {speedKmh.toFixed(1)} km/h
-          <input
-            type="range"
-            min={0.5}
-            max={10}
-            step={0.1}
-            value={speedKmh}
-            onChange={(event) => setSpeedKmh(Number(event.target.value))}
-            className="mt-1 w-full"
-          />
-        </label>
-      )}
-
       {movementSource === "phone-steps" && (
         <div className="mt-2 space-y-2 text-xs text-zinc-800">
           {!phoneStepsSupported || phoneStepsUnavailable ? (
-            <p className="text-zinc-600">Phone steps unavailable</p>
+            <p className="text-zinc-600">
+              Phone steps unavailable on this device. Try remote phone sensor.
+            </p>
           ) : (
             <>
               <label className="block">
@@ -245,7 +195,6 @@ export function WalkingHud({
                 />
               </label>
               <p>Steps: {steps}</p>
-              <p>Step distance: {(stepDistanceMeters / 1000).toFixed(2)} km</p>
               <p>Pace: {estimatedPaceKmh.toFixed(1)} km/h</p>
             </>
           )}
@@ -291,7 +240,7 @@ export function WalkingHud({
         className="mt-2 w-full rounded-lg py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900"
         onClick={onExit}
       >
-        Leave walk
+        Choose another place
       </button>
     </div>
   );

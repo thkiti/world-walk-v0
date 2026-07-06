@@ -1,4 +1,4 @@
-import type { LatLng, RouteProgress, StreetViewState } from "./types";
+import type { LatLng, StreetViewState, WalkDestination } from "./types";
 
 export const INITIAL_PITCH = 0;
 export const EARTH_RADIUS_METERS = 6378137;
@@ -36,6 +36,12 @@ export function bearing(from: LatLng, to: LatLng): number {
     Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
+
+export type RouteProgress = {
+  position: LatLng;
+  heading: number;
+  atEnd: boolean;
+};
 
 export function getRouteProgress(
   points: LatLng[],
@@ -118,14 +124,10 @@ export function moveForward(
   };
 }
 
-export function viewFromRouteProgress(
-  points: LatLng[],
-  distanceMeters: number
-): StreetViewState {
-  const progress = getRouteProgress(points, distanceMeters);
+export function viewFromPlace(destination: WalkDestination): StreetViewState {
   return {
-    position: progress.position,
-    heading: progress.heading,
+    position: destination.startPosition,
+    heading: destination.initialHeading,
     pitch: INITIAL_PITCH,
   };
 }
