@@ -86,11 +86,13 @@ export function ActiveWalkView({
     [setStreetViewDebug]
   );
 
+  const recordUserPosition = session.recordUserPosition;
+
   const handleUserNavigate = useCallback(
     (position: LatLng) => {
-      session.recordUserPosition(position);
+      recordUserPosition(position);
     },
-    [session]
+    [recordUserPosition]
   );
 
   const walkDebug = useMemo<WalkDebugState>(

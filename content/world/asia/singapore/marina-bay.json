@@ -1,13 +1,13 @@
 {
-  "id": "kyoto-gion",
-  "title": "Kyoto Gion",
-  "place": "Kyoto Gion",
+  "id": "marina-bay",
+  "title": "Marina Bay",
+  "place": "Marina Bay",
   "continent": "Asia",
-  "country": "Japan",
-  "city": "Kyoto",
-  "streetViewCoverage": "Good",
-  "description": "Traditional streets of the Gion district.",
-  "tags": ["historic", "traditional", "kyoto"],
-  "startPosition": { "lat": 35.0037, "lng": 135.7788 },
-  "initialHeading": 180
+  "country": "Singapore",
+  "city": "Singapore",
+  "streetViewCoverage": "Excellent",
+  "description": "Waterfront promenade with views of the skyline and Marina Bay Sands.",
+  "tags": ["waterfront", "skyline", "singapore"],
+  "startPosition": { "lat": 1.2868, "lng": 103.8545 },
+  "initialHeading": 90
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { logPhoneSteps } from "@/lib/step-counter";
 import { haversineDistance, viewFromPlace } from "@/lib/geo";
 import type { LatLng, MovementSource, WalkDestination } from "@/lib/types";
@@ -70,7 +70,12 @@ export function useWalkSession(
     setLastStepDeltaMeters(0);
     lastProcessedStepsRef.current = 0;
     setStreetViewDebug(EMPTY_STREET_VIEW_DEBUG);
-  }, [destination.id, destination.startPosition, destination.initialHeading]);
+  }, [
+    destination.id,
+    destination.startPosition.lat,
+    destination.startPosition.lng,
+    destination.initialHeading,
+  ]);
 
   useEffect(() => {
     if (!isWalking) return;
@@ -95,7 +100,7 @@ export function useWalkSession(
     applyMovementDelta(distanceMeters);
   }, [steps, isWalking, movementSource, strideLengthMeters]);
 
-  const recordUserPosition = (position: LatLng) => {
+  const recordUserPosition = useCallback((position: LatLng) => {
     setBreadcrumbs((current) => {
       const last = current[current.length - 1];
       if (
@@ -108,7 +113,7 @@ export function useWalkSession(
       breadcrumbsRef.current = next;
       return next;
     });
-  };
+  }, []);
 
   const reset = () => {
     setIsWalking(false);

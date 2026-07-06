@@ -61,8 +61,14 @@ export function StreetViewPanel({
   const povSyncTimerRef = useRef<number | null>(null);
   const lookupTimerRef = useRef<number | null>(null);
   const pendingPositionRef = useRef<LatLng | null>(null);
+  const hasLoadedInitialPanoRef = useRef(false);
+  const onUserNavigateRef = useRef(onUserNavigate);
+  const setViewRef = useRef(setView);
   const [panoramaReady, setPanoramaReady] = useState(false);
   const apiIsLoaded = useApiIsLoaded();
+
+  onUserNavigateRef.current = onUserNavigate;
+  setViewRef.current = setView;
 
   const reportDebug = useCallback(
     (
@@ -177,14 +183,14 @@ export function StreetViewPanel({
       lastAppliedPositionRef.current = position;
       lastAppliedPanoRef.current = getAppliedPanoId(panorama);
 
-      setView((current) => ({
+      setViewRef.current((current) => ({
         ...current,
         position,
         heading,
         pitch: pov?.pitch ?? current.pitch,
       }));
 
-      onUserNavigate?.(position);
+      onUserNavigateRef.current?.(position);
       reportDebug("USER_NAV");
     });
 
@@ -200,7 +206,7 @@ export function StreetViewPanel({
         const pov = panorama.getPov();
         if (!pov) return;
 
-        setView((current) => ({
+        setViewRef.current((current) => ({
           ...current,
           heading: pov.heading ?? current.heading,
           pitch: pov.pitch ?? current.pitch,
@@ -212,6 +218,7 @@ export function StreetViewPanel({
 
     return () => {
       lookupGenerationRef.current += 1;
+      hasLoadedInitialPanoRef.current = false;
       google.maps.event.removeListener(positionListener);
       google.maps.event.removeListener(povListener);
       if (povSyncTimerRef.current !== null) {
@@ -227,12 +234,19 @@ export function StreetViewPanel({
       lastAppliedPositionRef.current = null;
       setPanoramaReady(false);
     };
-  }, [apiIsLoaded, onUserNavigate, reportDebug, setView]);
+  }, [apiIsLoaded]);
 
   useEffect(() => {
     if (!panoramaReady) return;
 
     const pov = { heading: view.heading, pitch: view.pitch };
+
+    if (!hasLoadedInitialPanoRef.current) {
+      hasLoadedInitialPanoRef.current = true;
+      void applyPanoramaAtPosition(view.position, pov);
+      return;
+    }
+
     schedulePositionLookup(view.position, pov);
   }, [
     view.position.lat,
