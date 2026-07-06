@@ -62,6 +62,12 @@ export function SensorModePage() {
         </section>
 
         <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+          {sensor.relayConnectionIssue && (
+            <p className="rounded-lg border border-amber-500/40 bg-amber-950/50 px-3 py-2 text-xs text-amber-200">
+              {sensor.relayConnectionIssue}
+            </p>
+          )}
+
           <label className="block text-xs text-zinc-300">
             Relay WebSocket URL
             <input
@@ -69,6 +75,7 @@ export function SensorModePage() {
               value={sensor.relayBaseUrl}
               onChange={(event) => sensor.setRelayBaseUrl(event.target.value)}
               disabled={sensor.isActive}
+              placeholder="ws://192.168.x.x:3001"
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-100"
             />
           </label>
@@ -153,7 +160,11 @@ export function SensorModePage() {
           </button>
         </div>
         <p className="mt-3 text-center text-[11px] text-zinc-500">
-          Run <span className="font-mono">npm run relay</span> on your dev machine. Phone and tablet must share Wi-Fi.
+          On your PC: <span className="font-mono">npm run dev</span> +{" "}
+          <span className="font-mono">npm run relay</span>. Open{" "}
+          <span className="font-mono">http://&lt;pc-ip&gt;:3000</span> on phone
+          and tablet (not Vercel HTTPS). Relay:{" "}
+          <span className="font-mono">ws://&lt;pc-ip&gt;:3001</span>
         </p>
       </footer>
     </div>

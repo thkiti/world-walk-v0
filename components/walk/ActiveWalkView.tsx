@@ -13,6 +13,7 @@ import { useRemoteMovementSensor } from "@/hooks/useRemoteMovementSensor";
 import { useWalkSession } from "@/hooks/useWalkSession";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { isRemoteStepSource } from "@/lib/movement-source";
+import { getRelayConnectionIssue } from "@/lib/remote-sensor-url";
 import type { MovementSource, WalkDestination } from "@/lib/types";
 import type { StreetViewDebugState, WalkDebugState } from "@/lib/walk-debug";
 import { GLASS_PANEL } from "@/lib/ui";
@@ -116,6 +117,14 @@ export function ActiveWalkView({
       remoteDeltasApplied: remoteSensor.deltasApplied,
       remoteTotalSteps: remoteSensor.receivedSteps,
       remoteApplyBlockedReason: remoteSensor.lastApplyBlockedReason,
+      relayBaseUrl: remoteSensor.relayBaseUrl,
+      relayConnectionIssue: isRemoteStepSource(movementSource)
+        ? getRelayConnectionIssue(
+            remoteSensor.relayBaseUrl.trim() ||
+              process.env.NEXT_PUBLIC_REMOTE_SENSOR_WS_URL ||
+              ""
+          )
+        : null,
       streetView: session.streetViewDebug,
     }),
     [

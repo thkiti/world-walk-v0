@@ -31,6 +31,8 @@ export type WalkDebugState = {
   remoteDeltasApplied: number;
   remoteTotalSteps: number;
   remoteApplyBlockedReason: string | null;
+  relayBaseUrl: string;
+  relayConnectionIssue: string | null;
   streetView: StreetViewDebugState;
 };
 

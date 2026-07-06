@@ -58,6 +58,16 @@ export function TreadmillDebugPanel({ debug }: TreadmillDebugPanelProps) {
     <div className="pointer-events-none absolute top-3 right-3 z-30 max-w-[15rem] rounded-lg border border-sky-400/50 bg-black/80 p-2 font-mono text-[9px] leading-relaxed text-sky-100 shadow-lg md:landscape:max-w-[17rem] md:landscape:text-[10px]">
       <p className="mb-1 font-semibold text-sky-300">Treadmill Pipeline</p>
 
+      {debug.relayConnectionIssue && (
+        <p className="mb-1.5 rounded border border-rose-400/50 bg-rose-950/60 px-1.5 py-1 text-rose-200">
+          Relay: {debug.relayConnectionIssue}
+        </p>
+      )}
+
+      {debug.relayBaseUrl && (
+        <p className="mb-1 truncate text-zinc-400">url: {debug.relayBaseUrl}</p>
+      )}
+
       {stages.map((stage) => (
         <p key={stage.label} className={stage.ok ? "text-emerald-300" : "text-rose-300"}>
           {stage.ok ? "✓" : "✗"} {stage.label}: {stage.detail}

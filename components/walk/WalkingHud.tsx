@@ -211,6 +211,7 @@ export function WalkingHud({
           receivedSteps={remoteSensor.receivedSteps}
           receivedDistanceMeters={remoteSensor.receivedDistanceMeters}
           lastReceivedAt={remoteSensor.lastReceivedAt}
+          lastApplyBlockedReason={remoteSensor.lastApplyBlockedReason}
           onConnect={remoteSensor.connect}
           onDisconnect={remoteSensor.disconnect}
           isConnected={remoteSensor.isConnected}

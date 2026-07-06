@@ -13,6 +13,8 @@ import {
   getDefaultRelayBaseUrl,
   buildRelayWebSocketUrl,
   normalizeSessionCode,
+  getRelayConnectionIssue,
+  storeRelayBaseUrl,
 } from "@/lib/remote-sensor-url";
 
 type UseSensorTransmitterOptions = {
@@ -78,12 +80,21 @@ export function useSensorTransmitter(options: UseSensorTransmitterOptions = {}) 
       return false;
     }
 
+    const baseUrl = relayBaseUrl.trim() || getDefaultRelayBaseUrl();
+    const issue = getRelayConnectionIssue(baseUrl);
+    if (issue) {
+      setConnectionStatus("error");
+      setIsUnavailable(false);
+      setIsActive(false);
+      return false;
+    }
+
     disconnectClient();
 
     const client = new RemoteSensorClient({
       role: "sensor",
       sessionCode,
-      relayBaseUrl: relayBaseUrl.trim() || getDefaultRelayBaseUrl(),
+      relayBaseUrl: baseUrl,
       onStatusChange: setConnectionStatus,
       onMessage: (message) => {
         if (message.type === "peer-status") {
@@ -94,6 +105,7 @@ export function useSensorTransmitter(options: UseSensorTransmitterOptions = {}) 
 
     clientRef.current = client;
     client.connect();
+    storeRelayBaseUrl(baseUrl);
 
     const started = await counterRef.current.start(sendStepDelta);
     setIsActive(started);
@@ -131,12 +143,17 @@ export function useSensorTransmitter(options: UseSensorTransmitterOptions = {}) 
     sessionCode
   );
 
+  const relayConnectionIssue = getRelayConnectionIssue(
+    relayBaseUrl.trim() || getDefaultRelayBaseUrl()
+  );
+
   return {
     sessionCode,
     setSessionCode,
     relayBaseUrl,
     setRelayBaseUrl,
     websocketUrl,
+    relayConnectionIssue,
     steps,
     distanceSentMeters,
     isActive,

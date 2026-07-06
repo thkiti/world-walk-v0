@@ -6,7 +6,9 @@ import type { RemoteSensorConnectionStatus } from "@/lib/remote-sensor-client";
 import { devLog } from "@/lib/dev-log";
 import {
   getDefaultRelayBaseUrl,
+  getRelayConnectionIssue,
   normalizeSessionCode,
+  storeRelayBaseUrl,
 } from "@/lib/remote-sensor-url";
 
 type UseRemoteMovementSensorOptions = {
@@ -60,12 +62,21 @@ export function useRemoteMovementSensor({
     const code = normalizeSessionCode(sessionCode);
     if (!code) return;
 
+    const baseUrl = relayBaseUrl.trim() || getDefaultRelayBaseUrl();
+    const issue = getRelayConnectionIssue(baseUrl);
+    if (issue) {
+      devLog("[RemoteSensor] connect blocked", { issue, baseUrl });
+      setConnectionStatus("error");
+      setLastApplyBlockedReason(issue);
+      return;
+    }
+
     disconnect();
 
     const client = new RemoteSensorClient({
       role: "display",
       sessionCode: code,
-      relayBaseUrl: relayBaseUrl.trim() || getDefaultRelayBaseUrl(),
+      relayBaseUrl: baseUrl,
       onStatusChange: setConnectionStatus,
       onMessage: (message) => {
         if (message.type === "peer-status") {
@@ -103,6 +114,7 @@ export function useRemoteMovementSensor({
 
     clientRef.current = client;
     client.connect();
+    storeRelayBaseUrl(baseUrl);
   }, [sessionCode, relayBaseUrl, disconnect, enabled]);
 
   useEffect(() => {

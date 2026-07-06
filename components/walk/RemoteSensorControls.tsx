@@ -1,8 +1,7 @@
 "use client";
 
-import { RemoteSensorClient } from "@/lib/remote-sensor-client";
 import type { RemoteSensorConnectionStatus } from "@/lib/remote-sensor-client";
-import { getDefaultRelayBaseUrl } from "@/lib/remote-sensor-url";
+import { getDefaultRelayBaseUrl, getRelayConnectionIssue } from "@/lib/remote-sensor-url";
 
 type RemoteSensorControlsProps = {
   sessionCode: string;
@@ -14,6 +13,7 @@ type RemoteSensorControlsProps = {
   receivedSteps: number;
   receivedDistanceMeters: number;
   lastReceivedAt: number | null;
+  lastApplyBlockedReason?: string | null;
   onConnect: () => void;
   onDisconnect: () => void;
   isConnected: boolean;
@@ -54,19 +54,33 @@ export function RemoteSensorControls({
   receivedSteps,
   receivedDistanceMeters,
   lastReceivedAt,
+  lastApplyBlockedReason,
   onConnect,
   onDisconnect,
   isConnected,
 }: RemoteSensorControlsProps) {
-  const defaultRelay = getDefaultRelayBaseUrl();
+  const defaultRelay = getDefaultRelayBaseUrl() || "ws://192.168.x.x:3001";
+  const relayIssue = getRelayConnectionIssue(relayBaseUrl.trim() || defaultRelay);
 
   return (
     <div className="mt-2 space-y-2 text-xs text-zinc-800">
       <p className="text-zinc-600">
-        Connect to a phone running{" "}
-        <span className="font-medium">/sensor</span> on the same Wi-Fi. Start{" "}
-        <span className="font-mono">npm run relay</span> on the dev machine.
+        Phone runs <span className="font-medium">/sensor</span>. On your PC run{" "}
+        <span className="font-mono">npm run relay</span>. Both devices use the
+        same <span className="font-mono">ws://&lt;pc-ip&gt;:3001</span> URL.
       </p>
+
+      {relayIssue && (
+        <p className="rounded-lg border border-amber-400/60 bg-amber-50/80 px-2 py-1.5 text-amber-950">
+          {relayIssue}
+        </p>
+      )}
+
+      {lastApplyBlockedReason && connectionStatus === "error" && (
+        <p className="rounded-lg border border-rose-400/60 bg-rose-50/80 px-2 py-1.5 text-rose-950">
+          {lastApplyBlockedReason}
+        </p>
+      )}
 
       <label className="block">
         Session code
