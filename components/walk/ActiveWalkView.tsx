@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Map } from "@vis.gl/react-google-maps";
 import { ExplorationMapOverlay } from "@/components/map/ExplorationMapOverlay";
 import { MapOverlayPanel } from "@/components/walk/MapOverlayPanel";
 import { StreetViewPanel } from "@/components/walk/StreetViewPanel";
+import { TreadmillDebugPanel } from "@/components/walk/TreadmillDebugPanel";
 import { WalkingDebugPanel } from "@/components/walk/WalkingDebugPanel";
 import { WalkingHud } from "@/components/walk/WalkingHud";
 import { usePhoneStepCounter } from "@/hooks/usePhoneStepCounter";
@@ -28,7 +29,7 @@ export function ActiveWalkView({
   onExit,
 }: ActiveWalkViewProps) {
   const [movementSource, setMovementSource] =
-    useState<MovementSource>("phone-steps");
+    useState<MovementSource>("remote-phone-sensor");
   const [mapPanelOpen, setMapPanelOpen] = useState(false);
   const phoneSteps = usePhoneStepCounter();
   const {
@@ -46,6 +47,7 @@ export function ActiveWalkView({
     movementSource,
     strideLengthMeters,
     steps,
+    autoStart,
   });
 
   const {
@@ -55,21 +57,13 @@ export function ActiveWalkView({
     resolveUserNavigation,
     pauseForDecision,
   } = session;
-  const isWalkingRef = useRef(session.isWalking);
-
-  useEffect(() => {
-    isWalkingRef.current = session.isWalking;
-  }, [session.isWalking]);
 
   const handleRemoteConnectionLost = useCallback(() => {
     setIsWalking(false);
   }, [setIsWalking]);
 
   const handleRemoteMovementDelta = useCallback(
-    (deltaMeters: number) => {
-      if (!isWalkingRef.current) return;
-      applyMovementDelta(deltaMeters);
-    },
+    (deltaMeters: number) => applyMovementDelta(deltaMeters),
     [applyMovementDelta]
   );
 
@@ -109,6 +103,19 @@ export function ActiveWalkView({
       totalDistanceMeters: session.totalDistanceMeters,
       breadcrumbCount: session.breadcrumbs.length,
       lastStepDeltaMeters: session.lastStepDeltaMeters,
+      sessionDeltasApplied: session.sessionDeltasApplied,
+      awaitingDecision: session.awaitingDecision,
+      isWalking: session.isWalking,
+      viewHeading: session.view.heading,
+      viewPosition: session.view.position,
+      remoteConnected: remoteSensor.isConnected,
+      remoteSensorOnline: remoteSensor.sensorPeerConnected,
+      remoteConnectionStatus: remoteSensor.connectionStatus,
+      remoteLastDeltaMeters: remoteSensor.lastDeltaMeters,
+      remoteDeltasReceived: remoteSensor.deltasReceived,
+      remoteDeltasApplied: remoteSensor.deltasApplied,
+      remoteTotalSteps: remoteSensor.receivedSteps,
+      remoteApplyBlockedReason: remoteSensor.lastApplyBlockedReason,
       streetView: session.streetViewDebug,
     }),
     [
@@ -117,15 +124,23 @@ export function ActiveWalkView({
       session.totalDistanceMeters,
       session.breadcrumbs.length,
       session.lastStepDeltaMeters,
+      session.sessionDeltasApplied,
+      session.awaitingDecision,
+      session.isWalking,
+      session.view.heading,
+      session.view.position.lat,
+      session.view.position.lng,
       session.streetViewDebug,
+      remoteSensor.isConnected,
+      remoteSensor.sensorPeerConnected,
+      remoteSensor.connectionStatus,
+      remoteSensor.lastDeltaMeters,
+      remoteSensor.deltasReceived,
+      remoteSensor.deltasApplied,
+      remoteSensor.receivedSteps,
+      remoteSensor.lastApplyBlockedReason,
     ]
   );
-
-  useEffect(() => {
-    if (autoStart) {
-      setIsWalking(true);
-    }
-  }, [autoStart, destination.id, setIsWalking]);
 
   useEffect(() => {
     if (session.isWalking && movementSource === "phone-steps") {
@@ -242,6 +257,8 @@ export function ActiveWalkView({
           onUserNavigate={handleUserNavigate}
           onDecisionPoint={handleDecisionPoint}
         />
+
+        <TreadmillDebugPanel debug={walkDebug} />
 
         {!mapPanelOpen && (
           <div className="pointer-events-none absolute inset-0 md:landscape:hidden">

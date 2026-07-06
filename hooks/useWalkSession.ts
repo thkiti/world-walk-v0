@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { logPhoneSteps } from "@/lib/step-counter";
+import { devLog } from "@/lib/dev-log";
 import { haversineDistance, viewFromPlace } from "@/lib/geo";
 import type { LatLng, MovementSource, WalkDestination } from "@/lib/types";
 import { EMPTY_STREET_VIEW_DEBUG, type StreetViewDebugState } from "@/lib/walk-debug";
@@ -11,6 +12,7 @@ type UseWalkSessionOptions = {
   movementSource: MovementSource;
   strideLengthMeters: number;
   steps: number;
+  autoStart?: boolean;
 };
 
 export function useWalkSession(
@@ -19,16 +21,18 @@ export function useWalkSession(
     movementSource: "phone-steps",
     strideLengthMeters: 0.75,
     steps: 0,
+    autoStart: true,
   }
 ) {
-  const { movementSource, strideLengthMeters, steps } = options;
+  const { movementSource, strideLengthMeters, steps, autoStart = true } = options;
 
   const [view, setView] = useState(() => viewFromPlace(destination));
-  const [isWalking, setIsWalking] = useState(false);
+  const [isWalking, setIsWalking] = useState(autoStart);
   const [awaitingDecision, setAwaitingDecision] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastStepDeltaMeters, setLastStepDeltaMeters] = useState(0);
   const [totalDistanceMeters, setTotalDistanceMeters] = useState(0);
+  const [sessionDeltasApplied, setSessionDeltasApplied] = useState(0);
   const [breadcrumbs, setBreadcrumbs] = useState<LatLng[]>(() => [
     destination.startPosition,
   ]);
@@ -39,39 +43,71 @@ export function useWalkSession(
   const breadcrumbsRef = useRef(breadcrumbs);
   const totalDistanceRef = useRef(totalDistanceMeters);
   const awaitingDecisionRef = useRef(awaitingDecision);
+  const isWalkingRef = useRef(isWalking);
+  const viewRef = useRef(view);
 
   breadcrumbsRef.current = breadcrumbs;
   totalDistanceRef.current = totalDistanceMeters;
   awaitingDecisionRef.current = awaitingDecision;
+  isWalkingRef.current = isWalking;
+  viewRef.current = view;
 
-  const applyMovementDelta = useCallback((deltaMeters: number) => {
-    if (deltaMeters <= 0 || awaitingDecisionRef.current) return;
+  const applyMovementDelta = useCallback((deltaMeters: number): boolean => {
+    if (deltaMeters <= 0) return false;
 
+    if (awaitingDecisionRef.current) {
+      devLog("[Movement] delta blocked — awaitingDecision", { deltaMeters });
+      return false;
+    }
+
+    if (!isWalkingRef.current) {
+      devLog("[Movement] delta blocked — not walking", { deltaMeters });
+      return false;
+    }
+
+    const currentView = viewRef.current;
+    const oldPosition = currentView.position;
+    const result = advanceForward(
+      currentView,
+      breadcrumbsRef.current,
+      totalDistanceRef.current,
+      deltaMeters
+    );
+
+    breadcrumbsRef.current = result.breadcrumbs;
+    totalDistanceRef.current = result.totalDistanceMeters;
+    viewRef.current = result.view;
+
+    setView(result.view);
+    setBreadcrumbs(result.breadcrumbs);
+    setTotalDistanceMeters(result.totalDistanceMeters);
     setLastStepDeltaMeters(deltaMeters);
+    setSessionDeltasApplied((count) => count + 1);
 
-    setView((currentView) => {
-      const result = advanceForward(
-        currentView,
-        breadcrumbsRef.current,
-        totalDistanceRef.current,
-        deltaMeters
-      );
-      breadcrumbsRef.current = result.breadcrumbs;
-      totalDistanceRef.current = result.totalDistanceMeters;
-      setBreadcrumbs(result.breadcrumbs);
-      setTotalDistanceMeters(result.totalDistanceMeters);
-      return result.view;
+    devLog("[Movement] delta applied", {
+      deltaMeters,
+      heading: currentView.heading,
+      oldPosition,
+      newPosition: result.view.position,
+      totalDistanceMeters: result.totalDistanceMeters,
     });
+
+    return true;
   }, []);
 
   useEffect(() => {
-    setView(viewFromPlace(destination));
+    const initial = viewFromPlace(destination);
+    viewRef.current = initial;
+    setView(initial);
     setBreadcrumbs([destination.startPosition]);
+    breadcrumbsRef.current = [destination.startPosition];
     setTotalDistanceMeters(0);
+    totalDistanceRef.current = 0;
     setElapsedSeconds(0);
-    setIsWalking(false);
+    setIsWalking(autoStart);
     setAwaitingDecision(false);
     setLastStepDeltaMeters(0);
+    setSessionDeltasApplied(0);
     lastProcessedStepsRef.current = 0;
     setStreetViewDebug(EMPTY_STREET_VIEW_DEBUG);
   }, [
@@ -79,6 +115,7 @@ export function useWalkSession(
     destination.startPosition.lat,
     destination.startPosition.lng,
     destination.initialHeading,
+    autoStart,
   ]);
 
   useEffect(() => {
@@ -99,7 +136,6 @@ export function useWalkSession(
 
     lastProcessedStepsRef.current = steps;
     const distanceMeters = deltaSteps * strideLengthMeters;
-    setLastStepDeltaMeters(distanceMeters);
     logPhoneSteps(steps, deltaSteps, distanceMeters);
     applyMovementDelta(distanceMeters);
   }, [steps, isWalking, movementSource, strideLengthMeters, applyMovementDelta]);
@@ -123,16 +159,15 @@ export function useWalkSession(
     (position: LatLng, heading: number) => {
       setAwaitingDecision(false);
       recordUserPosition(position);
-      setView((current) => ({
-        ...current,
-        position,
-        heading,
-      }));
+      const next = { ...viewRef.current, position, heading };
+      viewRef.current = next;
+      setView(next);
     },
     [recordUserPosition]
   );
 
   const pauseForDecision = useCallback(() => {
+    devLog("[Movement] pauseForDecision");
     setAwaitingDecision(true);
   }, []);
 
@@ -141,12 +176,15 @@ export function useWalkSession(
     setAwaitingDecision(false);
     setElapsedSeconds(0);
     setTotalDistanceMeters(0);
+    totalDistanceRef.current = 0;
     setLastStepDeltaMeters(0);
+    setSessionDeltasApplied(0);
     lastProcessedStepsRef.current = 0;
-    setView(viewFromPlace(destination));
+    const initial = viewFromPlace(destination);
+    viewRef.current = initial;
+    setView(initial);
     setBreadcrumbs([destination.startPosition]);
     breadcrumbsRef.current = [destination.startPosition];
-    totalDistanceRef.current = 0;
     setStreetViewDebug(EMPTY_STREET_VIEW_DEBUG);
   };
 
@@ -165,6 +203,7 @@ export function useWalkSession(
     elapsedSeconds,
     movementSource,
     lastStepDeltaMeters,
+    sessionDeltasApplied,
     streetViewDebug,
     setStreetViewDebug,
     applyMovementDelta,

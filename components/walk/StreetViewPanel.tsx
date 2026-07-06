@@ -73,6 +73,8 @@ export function StreetViewPanel({
   const hasLoadedInitialPanoRef = useRef(false);
   const lastTotalDistanceRef = useRef(0);
   const pendingLinkDistanceRef = useRef(0);
+  const advanceAttemptsRef = useRef(0);
+  const viewRef = useRef(view);
   const onUserNavigateRef = useRef(onUserNavigate);
   const onDecisionPointRef = useRef(onDecisionPoint);
   const setViewRef = useRef(setView);
@@ -81,6 +83,7 @@ export function StreetViewPanel({
   const [panoramaReady, setPanoramaReady] = useState(false);
   const apiIsLoaded = useApiIsLoaded();
 
+  viewRef.current = view;
   onUserNavigateRef.current = onUserNavigate;
   onDecisionPointRef.current = onDecisionPoint;
   setViewRef.current = setView;
@@ -90,27 +93,67 @@ export function StreetViewPanel({
   const reportDebug = useCallback(
     (
       lookupStatus: string,
-      panorama: google.maps.StreetViewPanorama | null = panoramaRef.current
+      panorama: google.maps.StreetViewPanorama | null = panoramaRef.current,
+      extra?: Partial<StreetViewDebugState>
     ) => {
       onStreetViewDebug?.({
         panoramaPanoId: panorama ? getAppliedPanoId(panorama) : null,
         panoramaLatLng: panorama ? getAppliedPanoLatLng(panorama) : null,
         lastPanoramaLookupStatus: lookupStatus,
         lastAppliedPosition: lastAppliedPositionRef.current,
+        pendingAdvanceMeters: pendingLinkDistanceRef.current,
+        linkCount: panorama?.getLinks()?.length ?? 0,
+        lastAdvanceAction: lookupStatus,
+        advanceAttempts: advanceAttemptsRef.current,
+        ...extra,
       });
     },
     [onStreetViewDebug]
   );
 
-  const checkDecisionPoint = useCallback(
-    (panorama: google.maps.StreetViewPanorama, heading: number) => {
-      const analysis = analyzeForwardLink(panorama.getLinks(), heading);
-      if (analysis.isDecisionPoint) {
-        onDecisionPointRef.current?.();
-        reportDebug("DECISION_POINT");
-        return true;
+  const forceAdvanceToVirtualPosition = useCallback(
+    async (
+      targetPosition: LatLng,
+      pov: { heading: number; pitch: number }
+    ) => {
+      const panorama = panoramaRef.current;
+      const service = serviceRef.current;
+      if (!panorama || !service) return;
+
+      devLog("[StreetView] forceAdvance setPosition fallback", {
+        targetPosition,
+        heading: pov.heading,
+      });
+
+      const generation = ++lookupGenerationRef.current;
+      const result = await resolveStreetViewPanorama(service, targetPosition);
+      if (generation !== lookupGenerationRef.current) return;
+
+      isProgrammaticRef.current = true;
+      const previousPanoramaId =
+        lastAppliedPanoRef.current ?? getAppliedPanoId(panorama);
+
+      if (result.status === google.maps.StreetViewStatus.OK && result.pano) {
+        if (result.pano !== previousPanoramaId) {
+          panorama.setPano(result.pano);
+          devLog("[StreetView] fallback setPano", { pano: result.pano });
+        } else {
+          panorama.setPosition(targetPosition);
+          devLog("[StreetView] fallback setPosition same pano", {
+            targetPosition,
+          });
+        }
+      } else {
+        panorama.setPosition(targetPosition);
+        devLog("[StreetView] fallback setPosition direct", { targetPosition });
       }
-      return false;
+
+      panorama.setPov(pov);
+      lastAppliedPanoRef.current = getAppliedPanoId(panorama);
+      lastAppliedPositionRef.current = targetPosition;
+      isProgrammaticRef.current = false;
+
+      reportDebug("FORCE_ADVANCE");
     },
     [reportDebug]
   );
@@ -162,7 +205,7 @@ export function StreetViewPanel({
       if (applied || result.status === google.maps.StreetViewStatus.OK) {
         lastAppliedPanoRef.current =
           result.pano ?? getAppliedPanoId(panorama);
-        lastAppliedPositionRef.current = result.position;
+        lastAppliedPositionRef.current = targetPosition;
       }
 
       panorama.setPov(pov);
@@ -170,59 +213,70 @@ export function StreetViewPanel({
       reportDebug(
         applied ? "POSITION_CHANGED" : streetViewStatusLabel(result.status)
       );
-
-      if (
-        isWalkingRef.current &&
-        !awaitingDecisionRef.current &&
-        result.status === google.maps.StreetViewStatus.OK
-      ) {
-        checkDecisionPoint(panorama, pov.heading);
-      }
     },
-    [reportDebug, checkDecisionPoint]
+    [reportDebug]
   );
 
-  const tryAdvanceAlongLink = useCallback(async () => {
+  const advanceWalkingStreetView = useCallback(async () => {
     const panorama = panoramaRef.current;
-    const service = serviceRef.current;
-    if (!panorama || !service) return;
+    if (!panorama) return;
 
+    advanceAttemptsRef.current += 1;
+    const attempt = advanceAttemptsRef.current;
+
+    const currentView = viewRef.current;
     const pov = panorama.getPov();
-    const heading = pov?.heading ?? view.heading;
-    const analysis = analyzeForwardLink(panorama.getLinks(), heading);
+    const heading = pov?.heading ?? currentView.heading;
+    const targetPov = { heading, pitch: pov?.pitch ?? currentView.pitch };
+    const links = panorama.getLinks() ?? [];
+
+    devLog("[StreetView] advanceWalkingStreetView", {
+      attempt,
+      virtualPosition: currentView.position,
+      heading,
+      linkCount: links.length,
+      accumulatedMeters: pendingLinkDistanceRef.current,
+      awaitingDecision: awaitingDecisionRef.current,
+      totalDistanceMeters,
+    });
+
+    const analysis = analyzeForwardLink(links, heading);
+
+    devLog("[StreetView] link analysis", {
+      isDecisionPoint: analysis.isDecisionPoint,
+      forwardLink: analysis.forwardLink?.pano ?? null,
+      forwardLinkHeading: analysis.forwardLink?.heading ?? null,
+    });
 
     if (analysis.isDecisionPoint) {
       onDecisionPointRef.current?.();
-      reportDebug("DECISION_POINT");
+      reportDebug("DECISION_POINT", panorama, { linkCount: links.length });
       return;
     }
 
     if (analysis.forwardLink) {
+      devLog("[StreetView] setPano via link", {
+        pano: analysis.forwardLink.pano,
+        linkHeading: analysis.forwardLink.heading,
+      });
+
       isProgrammaticRef.current = true;
       panorama.setPano(analysis.forwardLink.pano);
-      panorama.setPov({ heading, pitch: pov?.pitch ?? view.pitch });
+      panorama.setPov(targetPov);
       isProgrammaticRef.current = false;
 
       lastAppliedPanoRef.current = analysis.forwardLink.pano;
       const position = getAppliedPanoLatLng(panorama);
       if (position) {
         lastAppliedPositionRef.current = position;
-        setViewRef.current((current) => ({
-          ...current,
-          position,
-          heading,
-        }));
       }
 
-      reportDebug("LINK_ADVANCE");
+      reportDebug("LINK_ADVANCE", panorama, { linkCount: links.length });
       return;
     }
 
-    await applyPanoramaAtPosition(view.position, {
-      heading,
-      pitch: pov?.pitch ?? view.pitch,
-    });
-  }, [view.position, view.heading, view.pitch, applyPanoramaAtPosition, reportDebug]);
+    await forceAdvanceToVirtualPosition(currentView.position, targetPov);
+  }, [forceAdvanceToVirtualPosition, reportDebug, totalDistanceMeters]);
 
   const schedulePositionLookup = useCallback(
     (targetPosition: LatLng, pov: { heading: number; pitch: number }) => {
@@ -263,7 +317,7 @@ export function StreetViewPanel({
       if (!position) return;
 
       const pov = panorama.getPov();
-      const heading = pov?.heading ?? view.heading;
+      const heading = pov?.heading ?? viewRef.current.heading;
 
       lastAppliedPositionRef.current = position;
       lastAppliedPanoRef.current = getAppliedPanoId(panorama);
@@ -275,6 +329,7 @@ export function StreetViewPanel({
         pitch: pov?.pitch ?? current.pitch,
       }));
 
+      devLog("[StreetView] user navigation", { position, heading });
       onUserNavigateRef.current?.(position, heading);
       reportDebug("USER_NAV");
     });
@@ -321,7 +376,7 @@ export function StreetViewPanel({
       lastAppliedPositionRef.current = null;
       setPanoramaReady(false);
     };
-  }, [apiIsLoaded, reportDebug, view.heading]);
+  }, [apiIsLoaded, reportDebug]);
 
   useEffect(() => {
     if (!panoramaReady) return;
@@ -334,7 +389,7 @@ export function StreetViewPanel({
       return;
     }
 
-    if (isWalking && !awaitingDecision) return;
+    if (isWalking) return;
 
     schedulePositionLookup(view.position, pov);
   }, [
@@ -344,7 +399,6 @@ export function StreetViewPanel({
     view.pitch,
     panoramaReady,
     isWalking,
-    awaitingDecision,
     schedulePositionLookup,
     applyPanoramaAtPosition,
   ]);
@@ -357,18 +411,30 @@ export function StreetViewPanel({
     if (delta <= 0) return;
 
     pendingLinkDistanceRef.current += delta;
+
+    devLog("[StreetView] movement accumulated", {
+      delta,
+      accumulatedMeters: pendingLinkDistanceRef.current,
+      threshold: PANORAMA_ADVANCE_THRESHOLD_METERS,
+      virtualPosition: viewRef.current.position,
+    });
+
     if (pendingLinkDistanceRef.current < PANORAMA_ADVANCE_THRESHOLD_METERS) {
+      reportDebug("ACCUMULATING", panoramaRef.current, {
+        pendingAdvanceMeters: pendingLinkDistanceRef.current,
+      });
       return;
     }
 
     pendingLinkDistanceRef.current = 0;
-    void tryAdvanceAlongLink();
+    void advanceWalkingStreetView();
   }, [
     totalDistanceMeters,
     isWalking,
     awaitingDecision,
     panoramaReady,
-    tryAdvanceAlongLink,
+    advanceWalkingStreetView,
+    reportDebug,
   ]);
 
   useEffect(() => {

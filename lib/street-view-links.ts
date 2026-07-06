@@ -21,7 +21,7 @@ export function analyzeForwardLink(
   currentHeading: number
 ): ForwardLinkAnalysis {
   if (!links || links.length === 0) {
-    return { isDecisionPoint: true, forwardLink: null };
+    return { isDecisionPoint: false, forwardLink: null };
   }
 
   const scored = links
@@ -36,16 +36,22 @@ export function analyzeForwardLink(
       angleDiff: normalizeAngleDiff(link.heading ?? 0, currentHeading),
     }));
 
-  const forwardCandidates = scored.filter(
+  if (scored.length === 0) {
+    return { isDecisionPoint: false, forwardLink: null };
+  }
+
+  scored.sort((a, b) => a.angleDiff - b.angleDiff);
+
+  const closeLinks = scored.filter(
     (link) => link.angleDiff <= FORWARD_TOLERANCE_DEGREES
   );
 
-  if (forwardCandidates.length === 0) {
-    return { isDecisionPoint: true, forwardLink: null };
+  if (closeLinks.length === 0) {
+    return { isDecisionPoint: false, forwardLink: null };
   }
 
-  if (forwardCandidates.length === 1) {
-    const best = forwardCandidates[0];
+  if (closeLinks.length === 1) {
+    const best = closeLinks[0];
     return {
       isDecisionPoint: false,
       forwardLink: {
@@ -56,9 +62,8 @@ export function analyzeForwardLink(
     };
   }
 
-  forwardCandidates.sort((a, b) => a.angleDiff - b.angleDiff);
-  const best = forwardCandidates[0];
-  const hasMeaningfulBranch = forwardCandidates.some(
+  const best = closeLinks[0];
+  const hasMeaningfulBranch = closeLinks.some(
     (candidate, index) =>
       index > 0 &&
       normalizeAngleDiff(candidate.heading, best.heading) >=

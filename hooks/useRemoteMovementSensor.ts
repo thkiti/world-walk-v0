@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RemoteSensorClient } from "@/lib/remote-sensor-client";
 import type { RemoteSensorConnectionStatus } from "@/lib/remote-sensor-client";
+import { devLog } from "@/lib/dev-log";
 import {
   getDefaultRelayBaseUrl,
   normalizeSessionCode,
@@ -10,7 +11,7 @@ import {
 
 type UseRemoteMovementSensorOptions = {
   enabled: boolean;
-  onMovementDelta: (deltaMeters: number) => void;
+  onMovementDelta: (deltaMeters: number) => boolean | void;
   onConnectionLost?: () => void;
 };
 
@@ -32,6 +33,12 @@ export function useRemoteMovementSensor({
   const [receivedSteps, setReceivedSteps] = useState(0);
   const [receivedDistanceMeters, setReceivedDistanceMeters] = useState(0);
   const [lastReceivedAt, setLastReceivedAt] = useState<number | null>(null);
+  const [lastDeltaMeters, setLastDeltaMeters] = useState(0);
+  const [deltasReceived, setDeltasReceived] = useState(0);
+  const [deltasApplied, setDeltasApplied] = useState(0);
+  const [lastApplyBlockedReason, setLastApplyBlockedReason] = useState<
+    string | null
+  >(null);
   const [sensorPeerConnected, setSensorPeerConnected] = useState(false);
 
   useEffect(() => {
@@ -66,12 +73,26 @@ export function useRemoteMovementSensor({
         }
       },
       onMovementDelta: (message) => {
-        if (message.deltaMeters > 0) {
-          onMovementDeltaRef.current(message.deltaMeters);
-        }
+        devLog("[RemoteSensor] delta received", {
+          deltaMeters: message.deltaMeters,
+          totalSteps: message.totalSteps,
+        });
+
+        setLastDeltaMeters(message.deltaMeters);
+        setDeltasReceived((count) => count + 1);
         setReceivedSteps(message.totalSteps);
         setReceivedDistanceMeters((current) => current + message.deltaMeters);
         setLastReceivedAt(message.timestamp);
+
+        if (message.deltaMeters > 0) {
+          const applied = onMovementDeltaRef.current(message.deltaMeters);
+          if (applied === false) {
+            setLastApplyBlockedReason("session rejected delta");
+          } else {
+            setLastApplyBlockedReason(null);
+            setDeltasApplied((count) => count + 1);
+          }
+        }
       },
       onClose: () => {
         if (enabled) {
@@ -100,6 +121,10 @@ export function useRemoteMovementSensor({
     setReceivedSteps(0);
     setReceivedDistanceMeters(0);
     setLastReceivedAt(null);
+    setLastDeltaMeters(0);
+    setDeltasReceived(0);
+    setDeltasApplied(0);
+    setLastApplyBlockedReason(null);
   }, []);
 
   return {
@@ -112,6 +137,10 @@ export function useRemoteMovementSensor({
     receivedSteps,
     receivedDistanceMeters,
     lastReceivedAt,
+    lastDeltaMeters,
+    deltasReceived,
+    deltasApplied,
+    lastApplyBlockedReason,
     connect,
     disconnect,
     resetStats,
