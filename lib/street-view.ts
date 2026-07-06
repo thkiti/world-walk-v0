@@ -1,4 +1,5 @@
 import type { LatLng } from "@/lib/types";
+import { haversineDistance } from "@/lib/geo";
 import { devLog } from "@/lib/dev-log";
 
 const LOOKUP_RADII_METERS = [50, 100, 200] as const;
@@ -197,6 +198,27 @@ export function applyPanoramaIfChanged(
       appliedPosition: result.position,
     });
     return true;
+  }
+
+  if (
+    newPanoramaId &&
+    newPanoramaId === previousPanoramaId
+  ) {
+    const currentPos = panorama.getPosition();
+    if (currentPos) {
+      const current = {
+        lat: currentPos.lat(),
+        lng: currentPos.lng(),
+      };
+      if (haversineDistance(current, result.requested) >= 1) {
+        panorama.setPosition(result.requested);
+        panorama.setPov(pov);
+        devLog("[StreetView] setPosition nudge — same pano id", {
+          requestedPosition: result.requested,
+        });
+        return true;
+      }
+    }
   }
 
   if (!newPanoramaId) {

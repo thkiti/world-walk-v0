@@ -12,7 +12,7 @@ import { useRemoteMovementSensor } from "@/hooks/useRemoteMovementSensor";
 import { useWalkSession } from "@/hooks/useWalkSession";
 import { useWakeLock } from "@/hooks/useWakeLock";
 import { isRemoteStepSource } from "@/lib/movement-source";
-import type { LatLng, MovementSource, WalkDestination } from "@/lib/types";
+import type { MovementSource, WalkDestination } from "@/lib/types";
 import type { StreetViewDebugState, WalkDebugState } from "@/lib/walk-debug";
 import { GLASS_PANEL } from "@/lib/ui";
 
@@ -48,8 +48,13 @@ export function ActiveWalkView({
     steps,
   });
 
-  const { setStreetViewDebug, setIsWalking, applyMovementDelta, setView } =
-    session;
+  const {
+    setStreetViewDebug,
+    setIsWalking,
+    applyMovementDelta,
+    resolveUserNavigation,
+    pauseForDecision,
+  } = session;
   const isWalkingRef = useRef(session.isWalking);
 
   useEffect(() => {
@@ -86,14 +91,16 @@ export function ActiveWalkView({
     [setStreetViewDebug]
   );
 
-  const recordUserPosition = session.recordUserPosition;
-
   const handleUserNavigate = useCallback(
-    (position: LatLng) => {
-      recordUserPosition(position);
+    (position: { lat: number; lng: number }, heading: number) => {
+      resolveUserNavigation(position, heading);
     },
-    [recordUserPosition]
+    [resolveUserNavigation]
   );
+
+  const handleDecisionPoint = useCallback(() => {
+    pauseForDecision();
+  }, [pauseForDecision]);
 
   const walkDebug = useMemo<WalkDebugState>(
     () => ({
@@ -161,6 +168,30 @@ export function ActiveWalkView({
     setIsWalking(true);
   }, [movementSource, startPhoneSteps, setIsWalking]);
 
+  const hud = (
+    <WalkingHud
+      destinationTitle={destination.title}
+      isWalking={session.isWalking}
+      awaitingDecision={session.awaitingDecision}
+      wakeLockStatus={wakeLockStatus}
+      movementSource={movementSource}
+      onMovementSourceChange={handleMovementSourceChange}
+      phoneStepsSupported={isSupported}
+      phoneStepsUnavailable={isUnavailable}
+      steps={steps}
+      strideLengthMeters={strideLengthMeters}
+      setStrideLengthMeters={setStrideLengthMeters}
+      remoteSensor={remoteSensor}
+      onPause={() => setIsWalking(false)}
+      onResume={handleResume}
+      onReset={handleReset}
+      onExit={onExit}
+      distanceWalkedKm={session.distanceWalkedKm}
+      elapsedSeconds={session.elapsedSeconds}
+      heading={session.view.heading}
+    />
+  );
+
   const mapPanel = (
     <MapOverlayPanel
       open={mapPanelOpen}
@@ -174,6 +205,7 @@ export function ActiveWalkView({
       breadcrumbs={session.breadcrumbs}
       elapsedSeconds={session.elapsedSeconds}
       distanceWalkedKm={session.distanceWalkedKm}
+      hud={hud}
     />
   );
 
@@ -193,36 +225,29 @@ export function ActiveWalkView({
             breadcrumbs={session.breadcrumbs}
           />
         </Map>
+
+        <div className="pointer-events-none absolute inset-0">
+          <div className="pointer-events-auto">{hud}</div>
+        </div>
       </div>
 
       <div className="relative min-h-0 flex-1 md:landscape:w-2/3">
         <StreetViewPanel
           view={session.view}
           setView={session.setView}
+          isWalking={session.isWalking}
+          awaitingDecision={session.awaitingDecision}
+          totalDistanceMeters={session.totalDistanceMeters}
           onStreetViewDebug={handleStreetViewDebug}
           onUserNavigate={handleUserNavigate}
+          onDecisionPoint={handleDecisionPoint}
         />
 
-        <WalkingHud
-          destinationTitle={destination.title}
-          isWalking={session.isWalking}
-          wakeLockStatus={wakeLockStatus}
-          movementSource={movementSource}
-          onMovementSourceChange={handleMovementSourceChange}
-          phoneStepsSupported={isSupported}
-          phoneStepsUnavailable={isUnavailable}
-          steps={steps}
-          strideLengthMeters={strideLengthMeters}
-          setStrideLengthMeters={setStrideLengthMeters}
-          remoteSensor={remoteSensor}
-          onPause={() => setIsWalking(false)}
-          onResume={handleResume}
-          onReset={handleReset}
-          onExit={onExit}
-          distanceWalkedKm={session.distanceWalkedKm}
-          elapsedSeconds={session.elapsedSeconds}
-          heading={session.view.heading}
-        />
+        {!mapPanelOpen && (
+          <div className="pointer-events-none absolute inset-0 md:landscape:hidden">
+            <div className="pointer-events-auto">{hud}</div>
+          </div>
+        )}
 
         <WalkingDebugPanel debug={walkDebug} />
 
@@ -247,18 +272,6 @@ export function ActiveWalkView({
       </div>
 
       {mapPanel}
-
-      <div
-        className={`pointer-events-none absolute top-3 right-3 hidden px-3 py-2 md:landscape:block ${GLASS_PANEL}`}
-      >
-        <p className="text-xs font-semibold tracking-[0.2em] text-zinc-800 uppercase">
-          World Walk
-        </p>
-        <p className="text-sm font-medium text-zinc-900">{destination.title}</p>
-        <p className="text-xs text-zinc-600">
-          {destination.city}, {destination.country}
-        </p>
-      </div>
     </div>
   );
 }

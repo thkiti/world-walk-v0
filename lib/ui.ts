@@ -1,6 +1,9 @@
 export const GLASS_PANEL =
   "rounded-xl border border-white/50 bg-white/30 shadow-lg backdrop-blur-md";
 
+export const GLASS_HUD =
+  "rounded-xl border border-white/30 bg-white/15 shadow-md backdrop-blur-sm";
+
 export const GLASS_SHEET =
   "rounded-t-2xl border border-white/50 bg-white/35 shadow-2xl backdrop-blur-md md:rounded-xl";
 

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Map } from "@vis.gl/react-google-maps";
 import { ExplorationMapOverlay } from "@/components/map/ExplorationMapOverlay";
 import { formatElapsed } from "@/lib/geo";
@@ -18,6 +19,7 @@ type MapOverlayPanelProps = {
   breadcrumbs: LatLng[];
   elapsedSeconds: number;
   distanceWalkedKm: number;
+  hud?: ReactNode;
 };
 
 export function MapOverlayPanel({
@@ -32,6 +34,7 @@ export function MapOverlayPanel({
   breadcrumbs,
   elapsedSeconds,
   distanceWalkedKm,
+  hud,
 }: MapOverlayPanelProps) {
   if (!open) return null;
 
@@ -78,6 +81,11 @@ export function MapOverlayPanel({
               breadcrumbs={breadcrumbs}
             />
           </Map>
+          {hud && (
+            <div className="pointer-events-none absolute inset-0">
+              <div className="pointer-events-auto">{hud}</div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-1 border-t border-white/40 px-4 py-3 text-sm text-zinc-800">

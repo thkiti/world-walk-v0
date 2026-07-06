@@ -25,6 +25,7 @@ export function useWalkSession(
 
   const [view, setView] = useState(() => viewFromPlace(destination));
   const [isWalking, setIsWalking] = useState(false);
+  const [awaitingDecision, setAwaitingDecision] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastStepDeltaMeters, setLastStepDeltaMeters] = useState(0);
   const [totalDistanceMeters, setTotalDistanceMeters] = useState(0);
@@ -37,12 +38,14 @@ export function useWalkSession(
   const lastProcessedStepsRef = useRef(0);
   const breadcrumbsRef = useRef(breadcrumbs);
   const totalDistanceRef = useRef(totalDistanceMeters);
+  const awaitingDecisionRef = useRef(awaitingDecision);
 
   breadcrumbsRef.current = breadcrumbs;
   totalDistanceRef.current = totalDistanceMeters;
+  awaitingDecisionRef.current = awaitingDecision;
 
-  const applyMovementDelta = (deltaMeters: number) => {
-    if (deltaMeters <= 0) return;
+  const applyMovementDelta = useCallback((deltaMeters: number) => {
+    if (deltaMeters <= 0 || awaitingDecisionRef.current) return;
 
     setLastStepDeltaMeters(deltaMeters);
 
@@ -59,7 +62,7 @@ export function useWalkSession(
       setTotalDistanceMeters(result.totalDistanceMeters);
       return result.view;
     });
-  };
+  }, []);
 
   useEffect(() => {
     setView(viewFromPlace(destination));
@@ -67,6 +70,7 @@ export function useWalkSession(
     setTotalDistanceMeters(0);
     setElapsedSeconds(0);
     setIsWalking(false);
+    setAwaitingDecision(false);
     setLastStepDeltaMeters(0);
     lastProcessedStepsRef.current = 0;
     setStreetViewDebug(EMPTY_STREET_VIEW_DEBUG);
@@ -98,7 +102,7 @@ export function useWalkSession(
     setLastStepDeltaMeters(distanceMeters);
     logPhoneSteps(steps, deltaSteps, distanceMeters);
     applyMovementDelta(distanceMeters);
-  }, [steps, isWalking, movementSource, strideLengthMeters]);
+  }, [steps, isWalking, movementSource, strideLengthMeters, applyMovementDelta]);
 
   const recordUserPosition = useCallback((position: LatLng) => {
     setBreadcrumbs((current) => {
@@ -115,8 +119,26 @@ export function useWalkSession(
     });
   }, []);
 
+  const resolveUserNavigation = useCallback(
+    (position: LatLng, heading: number) => {
+      setAwaitingDecision(false);
+      recordUserPosition(position);
+      setView((current) => ({
+        ...current,
+        position,
+        heading,
+      }));
+    },
+    [recordUserPosition]
+  );
+
+  const pauseForDecision = useCallback(() => {
+    setAwaitingDecision(true);
+  }, []);
+
   const reset = () => {
     setIsWalking(false);
+    setAwaitingDecision(false);
     setElapsedSeconds(0);
     setTotalDistanceMeters(0);
     setLastStepDeltaMeters(0);
@@ -135,6 +157,7 @@ export function useWalkSession(
     setView,
     isWalking,
     setIsWalking,
+    awaitingDecision,
     reset,
     totalDistanceMeters,
     distanceWalkedKm,
@@ -146,6 +169,8 @@ export function useWalkSession(
     setStreetViewDebug,
     applyMovementDelta,
     recordUserPosition,
+    resolveUserNavigation,
+    pauseForDecision,
     resetStepProgress: () => {
       lastProcessedStepsRef.current = 0;
       setLastStepDeltaMeters(0);
